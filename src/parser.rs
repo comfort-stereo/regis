@@ -1,0 +1,367 @@
+use lazy_static;
+use pest::error::Error;
+use pest::iterators::{Pair, Pairs};
+use pest::prec_climber::{Assoc, Operator, PrecClimber};
+use pest::{Parser, Span};
+use std::iter::Iterator;
+use uuid::Uuid;
+
+#[derive(Parser)]
+#[grammar = "grammar.pest"]
+struct RegisParser;
+
+#[derive(Debug)]
+pub enum AstRoot {
+    Module,
+}
+
+#[derive(Debug)]
+pub struct AstNode {
+    id: Uuid,
+    start: usize,
+    end: usize,
+    variant: AstNodeVariant,
+}
+
+impl AstNode {
+    pub fn create(span: &Span, variant: AstNodeVariant) -> Box<AstNode> {
+        Box::new(AstNode {
+            id: Uuid::new_v4(),
+            start: span.start(),
+            end: span.end(),
+            variant,
+        })
+    }
+
+    pub fn id(&self) -> Uuid {
+        self.id
+    }
+
+    pub fn end(&self) -> usize {
+        self.end
+    }
+
+    pub fn start(&self) -> usize {
+        self.start
+    }
+
+    pub fn variant(&self) -> &AstNodeVariant {
+        &self.variant
+    }
+}
+
+#[derive(Debug)]
+pub enum AstNodeVariant {
+    Module {
+        statements: Vec<Box<AstNode>>,
+    },
+    EchoStatement {
+        value: Box<AstNode>,
+    },
+    VariableDeclarationStatement {
+        name: String,
+        value: Box<AstNode>,
+    },
+    VariableAssignmentStatement {
+        name: String,
+        operator: AssignmentOperator,
+        value: Box<AstNode>,
+    },
+    Null,
+    Boolean {
+        value: bool,
+    },
+    Number {
+        text: String,
+        value: f64,
+    },
+    Identifier {
+        name: String,
+    },
+    List {
+        values: Vec<Box<AstNode>>,
+    },
+    BinaryOperation {
+        left: Box<AstNode>,
+        operator: BinaryOperator,
+        right: Box<AstNode>,
+    },
+    Wrapped {
+        value: Box<AstNode>,
+    },
+    IfStatement {
+        condition: Box<AstNode>,
+        block: Box<AstNode>,
+        else_statement: Option<Box<AstNode>>,
+    },
+    ElseStatement {
+        next: Box<AstNode>,
+    },
+    LoopStatement {
+        block: Box<AstNode>,
+    },
+    WhileStatement {
+        condition: Box<AstNode>,
+        block: Box<AstNode>,
+    },
+    BreakStatement,
+    ContinueStatement,
+    Block {
+        statements: Vec<Box<AstNode>>,
+    },
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum BinaryOperator {
+    Mul,
+    Div,
+    Add,
+    Sub,
+    Gt,
+    Lt,
+    Gte,
+    Lte,
+    Eq,
+    Neq,
+    And,
+    Or,
+    Ncl,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum AssignmentOperator {
+    Direct,
+    Mul,
+    Div,
+    Add,
+    Sub,
+    And,
+    Or,
+    Ncl,
+}
+
+pub fn parse(root: AstRoot, code: &str) -> Result<Box<AstNode>, Error<Rule>> {
+    let rule = match root {
+        AstRoot::Module => Rule::module,
+    };
+
+    Ok(build(read(rule, code)?))
+}
+
+fn read(rule: Rule, code: &str) -> Result<Pair<Rule>, Error<Rule>> {
+    let pairs = RegisParser::parse(rule, code)?
+        .into_iter()
+        .collect::<Vec<_>>();
+    for pair in pairs {
+        return Ok(pair);
+    }
+
+    unreachable!();
+}
+
+lazy_static! {
+    static ref CLIMBER: PrecClimber<Rule> = {
+        use Assoc::*;
+        use Rule::*;
+        let op = |rule: Rule| Operator::new(rule, Left);
+        PrecClimber::new(vec![
+            op(operator_binary_ncl),
+            op(operator_binary_or),
+            op(operator_binary_and),
+            op(operator_binary_gt)
+                | op(operator_binary_lt)
+                | op(operator_binary_gte)
+                | op(operator_binary_lte),
+            op(operator_binary_add) | op(operator_binary_sub),
+            op(operator_binary_mul) | op(operator_binary_div),
+            op(operator_binary_eq) | op(operator_binary_neq),
+        ])
+    };
+}
+
+fn build(pair: Pair<Rule>) -> Box<AstNode> {
+    let span = pair.as_span();
+    match pair.as_rule() {
+        Rule::module => {
+            let inner = pair.into_inner();
+            AstNode::create(
+                &span,
+                AstNodeVariant::Module {
+                    statements: inner.map(|child| build(child)).collect::<Vec<_>>(),
+                },
+            )
+        }
+        Rule::null => AstNode::create(&span, AstNodeVariant::Null),
+        Rule::boolean => AstNode::create(
+            &span,
+            AstNodeVariant::Boolean {
+                value: content(&pair) == "true",
+            },
+        ),
+        Rule::number => AstNode::create(
+            &span,
+            AstNodeVariant::Number {
+                value: content(&pair).parse::<f64>().unwrap(),
+                text: content(&pair),
+            },
+        ),
+        Rule::identifier => AstNode::create(
+            &span,
+            AstNodeVariant::Identifier {
+                name: content(&pair),
+            },
+        ),
+        Rule::list => AstNode::create(
+            &span,
+            AstNodeVariant::List {
+                values: pair
+                    .into_inner()
+                    .map(|child| build(child))
+                    .collect::<Vec<_>>(),
+            },
+        ),
+        Rule::variable_declaration_statement => {
+            let mut inner = pair.into_inner();
+            AstNode::create(
+                &span,
+                AstNodeVariant::VariableDeclarationStatement {
+                    name: content(&next(&mut inner)),
+                    value: build(next(&mut inner)),
+                },
+            )
+        }
+        Rule::variable_assignment_statement => {
+            let mut inner = pair.into_inner();
+            AstNode::create(
+                &span,
+                AstNodeVariant::VariableAssignmentStatement {
+                    name: content(&next(&mut inner)),
+                    operator: match &next(&mut inner).as_rule() {
+                        Rule::operator_assign_direct => AssignmentOperator::Direct,
+                        Rule::operator_assign_mul => AssignmentOperator::Mul,
+                        Rule::operator_assign_div => AssignmentOperator::Div,
+                        Rule::operator_assign_add => AssignmentOperator::Add,
+                        Rule::operator_assign_sub => AssignmentOperator::Sub,
+                        Rule::operator_assign_and => AssignmentOperator::And,
+                        Rule::operator_assign_or => AssignmentOperator::Or,
+                        Rule::operator_assign_ncl => AssignmentOperator::Ncl,
+                        _ => unreachable!(),
+                    },
+                    value: build(next(&mut inner)),
+                },
+            )
+        }
+        Rule::loop_statement => {
+            let mut inner = pair.into_inner();
+            AstNode::create(
+                &span,
+                AstNodeVariant::LoopStatement {
+                    block: build(next(&mut inner)),
+                },
+            )
+        }
+        Rule::while_statement => {
+            let mut inner = pair.into_inner();
+            AstNode::create(
+                &span,
+                AstNodeVariant::WhileStatement {
+                    condition: build(next(&mut inner)),
+                    block: build(next(&mut inner)),
+                },
+            )
+        }
+        Rule::break_statement => AstNode::create(&span, AstNodeVariant::BreakStatement),
+        Rule::continue_statement => AstNode::create(&span, AstNodeVariant::ContinueStatement),
+        Rule::echo_statement => {
+            let mut inner = pair.into_inner();
+            AstNode::create(
+                &span,
+                AstNodeVariant::EchoStatement {
+                    value: build(next(&mut inner)),
+                },
+            )
+        }
+        Rule::if_statement => {
+            let mut inner = pair.into_inner();
+            AstNode::create(
+                &span,
+                AstNodeVariant::IfStatement {
+                    condition: build(next(&mut inner)),
+                    block: build(next(&mut inner)),
+                    else_statement: inner.next().map(build),
+                },
+            )
+        }
+        Rule::else_statement => {
+            let mut inner = pair.into_inner();
+            AstNode::create(
+                &span,
+                AstNodeVariant::ElseStatement {
+                    next: build(next(&mut inner)),
+                },
+            )
+        }
+        Rule::block => AstNode::create(
+            &span,
+            AstNodeVariant::Block {
+                statements: pair
+                    .into_inner()
+                    .map(|child| build(child))
+                    .collect::<Vec<_>>(),
+            },
+        ),
+        Rule::wrapped => {
+            let mut inner = pair.into_inner();
+            AstNode::create(
+                &span,
+                AstNodeVariant::Wrapped {
+                    value: build(next(&mut inner)),
+                },
+            )
+        }
+        Rule::binary_operations => {
+            let inner = pair.into_inner();
+            CLIMBER.climb(
+                inner,
+                |pair: Pair<Rule>| build(pair),
+                |left: Box<AstNode>, operator: Pair<Rule>, right: Box<AstNode>| {
+                    let operator = match operator.as_rule() {
+                        Rule::operator_binary_mul => BinaryOperator::Mul,
+                        Rule::operator_binary_div => BinaryOperator::Div,
+                        Rule::operator_binary_add => BinaryOperator::Add,
+                        Rule::operator_binary_sub => BinaryOperator::Sub,
+                        Rule::operator_binary_gt => BinaryOperator::Gt,
+                        Rule::operator_binary_lt => BinaryOperator::Lt,
+                        Rule::operator_binary_gte => BinaryOperator::Gte,
+                        Rule::operator_binary_lte => BinaryOperator::Lte,
+                        Rule::operator_binary_eq => BinaryOperator::Eq,
+                        Rule::operator_binary_neq => BinaryOperator::Neq,
+                        Rule::operator_binary_and => BinaryOperator::And,
+                        Rule::operator_binary_or => BinaryOperator::Or,
+                        Rule::operator_binary_ncl => BinaryOperator::Ncl,
+                        _ => unreachable!(),
+                    };
+                    AstNode::create(
+                        &span,
+                        AstNodeVariant::BinaryOperation {
+                            left,
+                            operator,
+                            right,
+                        },
+                    )
+                },
+            )
+        }
+        _ => {
+            panic!("Unrecognized rule for build: {:?}", pair.as_rule());
+        }
+    }
+}
+
+fn content<'a>(pair: &Pair<'a, Rule>) -> String {
+    pair.as_str().trim().into()
+}
+
+fn next<'a>(pairs: &mut Pairs<'a, Rule>) -> Pair<'a, Rule> {
+    pairs.next().unwrap()
+}
