@@ -25,8 +25,12 @@ impl Object for List {
 }
 
 impl List {
+    fn new() -> List {
+        List { values: Vec::new() }
+    }
+
     pub fn create() -> Shared<List> {
-        Shared::new(List { values: Vec::new() })
+        Shared::new(List::new())
     }
 
     pub fn get(&self, index: Value) -> Value {
@@ -61,7 +65,25 @@ impl List {
         }
     }
 
-    pub fn append(&mut self, value: Value) {
+    pub fn reserve(&mut self, capacity: usize) {
+        self.values.reserve(capacity);
+    }
+
+    pub fn concat(&self, other: Shared<List>) -> Shared<List> {
+        let mut result = Self::new();
+        result.reserve(self.count() + other.borrow().count());
+
+        for value in &self.values {
+            result.push(value.clone())
+        }
+        for value in &other.borrow().values {
+            result.push(value.clone())
+        }
+
+        Shared::new(result)
+    }
+
+    pub fn push(&mut self, value: Value) {
         self.values.push(value)
     }
 

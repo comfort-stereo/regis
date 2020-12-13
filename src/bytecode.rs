@@ -25,7 +25,7 @@ pub enum BytecodeInstruction {
     PushBoolean(bool),
     PushNumber(f64),
     CreateList,
-    InPlaceAppend,
+    InPlacePush,
     PushVariable(String),
     DeclareVariable(String),
     AssignVariable(String),
@@ -128,7 +128,7 @@ pub fn emit(node: &Box<AstNode>, code: &mut BytecodeChunk) {
             code.add(BytecodeInstruction::CreateList);
             for value in values {
                 emit(value, code);
-                code.add(BytecodeInstruction::InPlaceAppend);
+                code.add(BytecodeInstruction::InPlacePush);
             }
         }
         AstNodeVariant::VariableDeclarationStatement { name, value } => {

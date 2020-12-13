@@ -53,7 +53,7 @@ impl Vm {
                 BytecodeInstruction::PushNumber(value) => self.instruction_push_number(*value),
                 BytecodeInstruction::PushVariable(name) => self.instruction_push_variable(name),
                 BytecodeInstruction::CreateList => self.instruction_create_list(),
-                BytecodeInstruction::InPlaceAppend => self.instruction_in_place_append(),
+                BytecodeInstruction::InPlacePush => self.instruction_in_place_push(),
                 BytecodeInstruction::DeclareVariable(name) => {
                     self.instruction_declare_variable(name);
                 }
@@ -134,15 +134,15 @@ impl Vm {
         self.push(Value::List(List::create()));
     }
 
-    fn instruction_in_place_append(&mut self) {
+    fn instruction_in_place_push(&mut self) {
         let value = self.pop();
         let target = self.tos();
         match target {
             Value::List(list) => {
-                list.borrow_mut().append(value);
+                list.borrow_mut().push(value);
             }
             _ => {
-                panic!("Cannot append to value of type: '{}'", value.type_name())
+                panic!("Cannot push value of type: '{}'", value.type_name())
             }
         }
     }
@@ -161,6 +161,10 @@ impl Vm {
                 BytecodeInstruction::BinaryLt => Some(Value::Boolean(left < right)),
                 BytecodeInstruction::BinaryGte => Some(Value::Boolean(left >= right)),
                 BytecodeInstruction::BinaryLte => Some(Value::Boolean(left <= right)),
+                _ => None,
+            },
+            (Value::List(left), Value::List(right)) => match instruction {
+                BytecodeInstruction::BinaryAdd => Some(Value::List(left.borrow().concat(right))),
                 _ => None,
             },
             _ => None,
