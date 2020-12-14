@@ -86,6 +86,10 @@ pub enum AstNodeVariant {
         operator: BinaryOperator,
         right: Box<AstNode>,
     },
+    Index {
+        target: Box<AstNode>,
+        index: Box<AstNode>,
+    },
     Wrapped {
         value: Box<AstNode>,
     },
@@ -351,6 +355,24 @@ fn build(pair: Pair<Rule>) -> Box<AstNode> {
                     )
                 },
             )
+        }
+        Rule::index_expressions => {
+            let mut inner = pair.into_inner();
+            let target = build(next(&mut inner));
+            let indexes = inner.map(|child| build(child)).collect::<Vec<_>>();
+
+            let mut current = target;
+            for index in indexes {
+                current = AstNode::create(
+                    &span,
+                    AstNodeVariant::Index {
+                        target: current,
+                        index: index,
+                    },
+                )
+            }
+
+            current
         }
         _ => {
             panic!("Unrecognized rule for build: {:?}", pair.as_rule());

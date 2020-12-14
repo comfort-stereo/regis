@@ -48,6 +48,7 @@ impl Vm {
                 | BytecodeInstruction::BinaryNeq => {
                     self.instruction_binary_operation(&instruction);
                 }
+                BytecodeInstruction::GetIndex => self.instruction_get_index(),
                 BytecodeInstruction::PushNull => self.instruction_push_null(),
                 BytecodeInstruction::PushBoolean(value) => self.instruction_push_boolean(*value),
                 BytecodeInstruction::PushNumber(value) => self.instruction_push_number(*value),
@@ -118,6 +119,20 @@ impl Vm {
         self.push(Value::Null);
     }
 
+    fn instruction_get_index(&mut self) {
+        let index = self.pop();
+        let target = self.pop();
+        self.push(match target {
+            Value::List(list) => list.borrow().get(index),
+            _ => panic!(
+                "Instruction {:?} is not defined for types {} and {}.",
+                BytecodeInstruction::GetIndex,
+                target.type_name(),
+                index.type_name()
+            ),
+        });
+    }
+
     fn instruction_push_boolean(&mut self, value: bool) {
         self.push(Value::Boolean(value));
     }
@@ -179,8 +194,10 @@ impl Vm {
             self.push(result);
         } else {
             panic!(
-                "Binary operation {:?} is not defined for values {:?} and {:?}.",
-                instruction, left, right
+                "Instruction {:?} is not defined for types {} and {}.",
+                instruction,
+                left.type_name(),
+                right.type_name()
             );
         }
     }

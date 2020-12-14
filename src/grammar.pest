@@ -31,6 +31,7 @@ atom = _{
 }
 
 wrapped = { "(" ~ br? ~ expression ~ br? ~ ")" }
+list = { "[" ~ br? ~ (expression ~ br? ~ "," ~ br?)* ~ expression? ~ br? ~ "]" }
 
 operator_binary_mul = { "*" }
 operator_binary_div = { "/" }
@@ -83,14 +84,21 @@ assignment_operator = _{
 }
 
 binary_operations = {
-    operable_expression ~ br? ~ (binary_operator ~ br? ~ operable_expression)+
+    binary_operable_expression ~ br? ~ (binary_operator ~ br? ~ binary_operable_expression)+
 }
 
-list = {
-    "[" ~ br? ~ (expression ~ br? ~ "," ~ br?)* ~ expression? ~ br? ~ "]"
+index_expressions = {
+    (indexable_expression) ~ ("[" ~ br? ~ expression ~ br? ~ "]")+
 }
 
-operable_expression = _{
+binary_operable_expression = _{
+      wrapped
+    | index_expressions
+    | atom
+    | list
+}
+
+indexable_expression = _{
       wrapped
     | atom
     | list
@@ -98,6 +106,7 @@ operable_expression = _{
 
 expression = _{
       wrapped
+    | index_expressions
     | binary_operations
     | atom
     | list
@@ -118,7 +127,6 @@ exec_statement = _{
 }
 
 block = { "{" ~ br? ~ statement* ~ exec_statement? ~ br? ~ "}" }
-
 if_statement = { keyword_if ~ br? ~ expression ~ br? ~ block ~ br? ~ else_statement? }
 else_statement = { keyword_else ~ br? ~ (block | if_statement) }
 loop_statement = { keyword_loop ~ br? ~ block }

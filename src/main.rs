@@ -38,9 +38,9 @@ fn main() {
 
     let ast = parse(AstRoot::Module, &code);
 
-    // println!("{:#?}", ast);
+    println!("{:#?}", ast);
     let chunk = compile(&ast.unwrap());
-    // println!("Chunk: {:#?}", chunk);
+    println!("Chunk: {:#?}", chunk);
     let mut vm = Vm::new();
     vm.run_chunk(chunk);
 }

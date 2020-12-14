@@ -21,6 +21,7 @@ pub enum BytecodeInstruction {
     BinaryLte,
     BinaryEq,
     BinaryNeq,
+    GetIndex,
     PushNull,
     PushBoolean(bool),
     PushNumber(f64),
@@ -287,6 +288,11 @@ pub fn emit(node: &Box<AstNode>, code: &mut BytecodeChunk) {
                 }
                 _ => unreachable!(),
             }
+        }
+        AstNodeVariant::Index { target, index } => {
+            emit(target, code);
+            emit(index, code);
+            code.add(BytecodeInstruction::GetIndex);
         }
     }
 }

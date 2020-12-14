@@ -37,7 +37,7 @@ impl List {
         match index {
             Value::Number(number) => {
                 let index = number as usize;
-                if number <= 0f64 || index >= self.values.len() {
+                if number < 0f64 || index >= self.values.len() {
                     return Value::Null;
                 }
 
@@ -53,7 +53,7 @@ impl List {
         match index {
             Value::Number(number) => {
                 let index = number as usize;
-                if number <= 0f64 || index >= self.values.len() {
+                if number < 0f64 || index >= self.values.len() {
                     panic!("Invalid assignment to index: {}", index);
                 }
 
