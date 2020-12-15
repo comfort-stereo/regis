@@ -1,6 +1,6 @@
 use crate::list::List;
-use crate::object::Object;
 use crate::shared::Shared;
+use crate::value_type::ValueType;
 
 #[derive(Debug)]
 pub enum Value {
@@ -36,12 +36,12 @@ impl PartialEq for Value {
 impl Eq for Value {}
 
 impl Value {
-    pub fn type_name(&self) -> &'static str {
+    pub fn type_of(&self) -> ValueType {
         match self {
-            Value::Null => "null",
-            Value::Boolean(..) => "boolean",
-            Value::Number(..) => "number",
-            Value::List(..) => "list",
+            Value::Null => ValueType::Null,
+            Value::Boolean(..) => ValueType::Boolean,
+            Value::Number(..) => ValueType::Number,
+            Value::List(list) => list.borrow().type_of(),
         }
     }
 

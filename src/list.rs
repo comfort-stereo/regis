@@ -1,27 +1,11 @@
-use crate::object::Object;
 use crate::shared::Shared;
 use crate::value::Value;
+use crate::value_type::ValueType;
+use crate::vm_error::VmError;
 
 #[derive(Debug)]
 pub struct List {
     values: Vec<Value>,
-}
-
-impl Object for List {
-    fn to_boolean(&self) -> bool {
-        true
-    }
-
-    fn to_string(&self) -> String {
-        format!(
-            "[{}]",
-            self.values()
-                .into_iter()
-                .map(|value| value.to_string())
-                .collect::<Vec<_>>()
-                .join(", ")
-        )
-    }
 }
 
 impl List {
@@ -33,35 +17,60 @@ impl List {
         Shared::new(List::new())
     }
 
-    pub fn get(&self, index: Value) -> Value {
+    pub fn type_of(&self) -> ValueType {
+        ValueType::List
+    }
+
+    pub fn to_boolean(&self) -> bool {
+        true
+    }
+
+    pub fn to_string(&self) -> String {
+        format!(
+            "[{}]",
+            self.values()
+                .into_iter()
+                .map(|value| value.to_string())
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    }
+
+    pub fn get(&self, index: Value) -> Result<Value, VmError> {
         match index {
             Value::Number(number) => {
                 let index = number as usize;
                 if number < 0f64 || index >= self.values.len() {
-                    return Value::Null;
+                    return Ok(Value::Null);
                 }
 
-                self.values[index].clone()
+                Ok(self.values[index].clone())
             }
-            _ => {
-                panic!("Lists cannot be indexed by type: '{}'", index.type_name());
-            }
+            _ => Err(VmError::InvalidIndexAccess {
+                target_type: self.type_of(),
+                index: index.to_string(),
+            }),
         }
     }
 
-    pub fn set(&mut self, index: Value, value: Value) {
+    pub fn set(&mut self, index: Value, value: Value) -> Result<(), VmError> {
         match index {
             Value::Number(number) => {
                 let index = number as usize;
                 if number < 0f64 || index >= self.values.len() {
-                    panic!("Invalid assignment to index: {}", index);
+                    return Err(VmError::InvalidIndexAssignment {
+                        target_type: self.type_of(),
+                        index: index.to_string(),
+                    });
                 }
 
                 self.values[index] = value;
+                Ok(())
             }
-            _ => {
-                panic!("Lists cannot be indexed by type: '{}'", index.type_name());
-            }
+            _ => Err(VmError::InvalidIndexAssignment {
+                target_type: self.type_of(),
+                index: index.to_string(),
+            }),
         }
     }
 

@@ -7,11 +7,12 @@ extern crate uuid;
 
 mod bytecode;
 mod list;
-mod object;
 mod parser;
 mod shared;
 mod value;
+mod value_type;
 mod vm;
+mod vm_error;
 
 use crate::bytecode::*;
 use crate::parser::{parse, AstRoot};
@@ -38,9 +39,14 @@ fn main() {
 
     let ast = parse(AstRoot::Module, &code);
 
-    println!("{:#?}", ast);
+    // println!("{:#?}", ast);
     let chunk = compile(&ast.unwrap());
-    println!("Chunk: {:#?}", chunk);
+    // println!("Chunk: {:#?}", chunk);
     let mut vm = Vm::new();
-    vm.run_chunk(chunk);
+    match vm.run_chunk(chunk) {
+        Ok(()) => {}
+        Err(error) => {
+            println!("ERROR: {}", error);
+        }
+    }
 }

@@ -10,7 +10,7 @@ use uuid::Uuid;
 #[grammar = "grammar.pest"]
 struct RegisParser;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum AstRoot {
     Module,
 }
