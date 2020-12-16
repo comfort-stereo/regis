@@ -65,14 +65,14 @@ impl Display for VmError {
             VmError::InvalidIndexAccess { target_type, index } => {
                 write!(
                     formatter,
-                    "Attempted to get invalid index '{}' of '{}'",
+                    "Attempted to get invalid index '{}' of type '{}'",
                     index, target_type
                 )
             }
             VmError::InvalidIndexAssignment { target_type, index } => {
                 write!(
                     formatter,
-                    "Attempted to set invalid index '{}' of '{}'",
+                    "Attempted to set invalid index '{}' of type '{}'",
                     index, target_type,
                 )
             }

@@ -1,4 +1,6 @@
 use crate::parser::{AssignmentOperator, AstNode, AstNodeVariant, BinaryOperator};
+use std::fmt::Formatter;
+use std::fmt::{Debug, Result};
 
 use std::collections::{BTreeMap, HashSet};
 use std::hash::Hash;
@@ -22,6 +24,7 @@ pub enum BytecodeInstruction {
     BinaryEq,
     BinaryNeq,
     GetIndex,
+    SetIndex,
     PushNull,
     PushBoolean(bool),
     PushNumber(f64),
@@ -44,10 +47,24 @@ pub enum BytecodeMarker {
     Continue,
 }
 
-#[derive(Debug)]
 pub struct BytecodeChunk {
     instructions: Vec<BytecodeInstruction>,
     markers: BTreeMap<usize, HashSet<BytecodeMarker>>,
+}
+
+impl Debug for BytecodeChunk {
+    fn fmt(&self, formatter: &mut Formatter) -> Result {
+        formatter
+            .debug_map()
+            .entries(
+                self.instructions()
+                    .iter()
+                    .enumerate()
+                    .map(|(line, instruction)| (instruction, self.get_markers(line)))
+                    .enumerate(),
+            )
+            .finish()
+    }
 }
 
 impl BytecodeChunk {
@@ -103,6 +120,14 @@ impl BytecodeChunk {
             .map(|group| group.contains(&marker))
             .unwrap_or(false)
     }
+
+    pub fn get_markers(&self, line: usize) -> HashSet<BytecodeMarker> {
+        if let Some(markers) = self.markers.get(&line) {
+            return markers.clone();
+        }
+
+        HashSet::new()
+    }
 }
 
 pub fn emit(node: &Box<AstNode>, code: &mut BytecodeChunk) {
@@ -142,45 +167,94 @@ pub fn emit(node: &Box<AstNode>, code: &mut BytecodeChunk) {
             operator,
             value,
         } => {
+            if *operator != AssignmentOperator::Direct {
+                code.add(BytecodeInstruction::PushVariable(name.into()));
+            }
+
             match operator {
                 AssignmentOperator::Direct => {
                     emit(value, code);
                 }
                 AssignmentOperator::Mul => {
-                    code.add(BytecodeInstruction::PushVariable(name.into()));
                     emit(value, code);
                     code.add(BytecodeInstruction::BinaryMul);
                 }
                 AssignmentOperator::Div => {
-                    code.add(BytecodeInstruction::PushVariable(name.into()));
                     emit(value, code);
                     code.add(BytecodeInstruction::BinaryDiv);
                 }
                 AssignmentOperator::Add => {
-                    code.add(BytecodeInstruction::PushVariable(name.into()));
                     emit(value, code);
                     code.add(BytecodeInstruction::BinaryAdd);
                 }
                 AssignmentOperator::Sub => {
-                    code.add(BytecodeInstruction::PushVariable(name.into()));
                     emit(value, code);
                     code.add(BytecodeInstruction::BinarySub);
                 }
                 AssignmentOperator::And => {
-                    code.add(BytecodeInstruction::PushVariable(name.into()));
                     emit_and_operation(value, code);
                 }
                 AssignmentOperator::Or => {
-                    code.add(BytecodeInstruction::PushVariable(name.into()));
                     emit_or_operation(value, code);
                 }
                 AssignmentOperator::Ncl => {
-                    code.add(BytecodeInstruction::PushVariable(name.into()));
                     emit_ncl_operation(value, code);
                 }
             }
 
             code.add(BytecodeInstruction::AssignVariable(name.into()));
+        }
+        AstNodeVariant::IndexAssignmentStatement {
+            index,
+            operator,
+            value,
+        } => {
+            let (target, index) = match index.variant() {
+                AstNodeVariant::Index { target, index } => (target, index),
+                _ => unreachable!(),
+            };
+
+            emit(target, code);
+            emit(index, code);
+
+            if *operator != AssignmentOperator::Direct {
+                emit(target, code);
+                emit(index, code);
+                code.add(BytecodeInstruction::GetIndex);
+            }
+
+            match operator {
+                AssignmentOperator::Direct => {
+                    emit(value, code);
+                }
+                AssignmentOperator::Mul => {
+                    emit(value, code);
+                    code.add(BytecodeInstruction::BinaryMul);
+                }
+                AssignmentOperator::Div => {
+                    emit(value, code);
+                    code.add(BytecodeInstruction::BinaryDiv);
+                }
+                AssignmentOperator::Add => {
+                    emit(value, code);
+                    code.add(BytecodeInstruction::BinaryAdd);
+                }
+                AssignmentOperator::Sub => {
+                    emit(value, code);
+                    code.add(BytecodeInstruction::BinarySub);
+                }
+                AssignmentOperator::And => {
+                    emit_and_operation(value, code);
+                }
+                AssignmentOperator::Or => {
+                    emit_or_operation(value, code);
+                }
+                AssignmentOperator::Ncl => {
+                    emit_ncl_operation(value, code);
+                }
+            }
+
+            code.add(BytecodeInstruction::SetIndex);
         }
         AstNodeVariant::IfStatement {
             condition,
@@ -211,21 +285,25 @@ pub fn emit(node: &Box<AstNode>, code: &mut BytecodeChunk) {
         }
         AstNodeVariant::LoopStatement { block } => {
             code.mark(code.end(), BytecodeMarker::LoopStart);
-            let start = code.end();
+            let start_line = code.end();
             emit(block, code);
-            code.add(BytecodeInstruction::Jump(start));
+            code.add(BytecodeInstruction::Jump(start_line));
             code.mark(code.end(), BytecodeMarker::LoopEnd);
         }
         AstNodeVariant::WhileStatement { condition, block } => {
             code.mark(code.end(), BytecodeMarker::LoopStart);
-            let start = code.end();
+            let start_line = code.end();
             emit(condition, code);
             code.add(BytecodeInstruction::JumpIf(code.end() + 2));
+
             code.blank();
-            code.mark(code.last(), BytecodeMarker::Break);
+            let jump_line = code.last();
             emit(block, code);
-            code.add(BytecodeInstruction::Jump(start));
-            code.mark(code.end(), BytecodeMarker::LoopEnd);
+            code.add(BytecodeInstruction::Jump(start_line));
+
+            let end_line = code.end();
+            code.mark(end_line, BytecodeMarker::LoopEnd);
+            code.set(jump_line, BytecodeInstruction::Jump(end_line));
         }
         AstNodeVariant::BreakStatement => {
             code.blank();
@@ -331,16 +409,32 @@ fn emit_ncl_operation(value: &Box<AstNode>, code: &mut BytecodeChunk) {
 fn finalize(code: &mut BytecodeChunk) {
     for i in 0..=code.end() {
         if code.has_marker(i, BytecodeMarker::Break) {
+            let mut depth = 0;
             for j in i..=code.end() {
-                if code.has_marker(j, BytecodeMarker::LoopEnd) {
-                    code.set(i, BytecodeInstruction::Jump(j));
+                if code.has_marker(j, BytecodeMarker::LoopStart) {
+                    depth += 1;
+                } else if code.has_marker(j, BytecodeMarker::LoopEnd) {
+                    if depth == 0 {
+                        code.set(i, BytecodeInstruction::Jump(j));
+                        println!("GOOOOD");
+                        break;
+                    }
+
+                    depth -= 1;
                 }
             }
-        }
-        if code.has_marker(i, BytecodeMarker::Continue) {
+        } else if code.has_marker(i, BytecodeMarker::Continue) {
+            let mut depth = 0;
             for j in (0..=i).rev() {
-                if code.has_marker(j, BytecodeMarker::LoopStart) {
-                    code.set(i, BytecodeInstruction::Jump(j));
+                if code.has_marker(j, BytecodeMarker::LoopEnd) {
+                    depth += 1;
+                } else if code.has_marker(j, BytecodeMarker::LoopStart) {
+                    if depth == 0 {
+                        code.set(i, BytecodeInstruction::Jump(j));
+                        break;
+                    }
+
+                    depth -= 1
                 }
             }
         }

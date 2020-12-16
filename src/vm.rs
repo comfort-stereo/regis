@@ -49,7 +49,6 @@ impl Vm {
                 | BytecodeInstruction::BinaryNeq => {
                     self.instruction_binary_operation(&instruction)?
                 }
-                BytecodeInstruction::GetIndex => self.instruction_get_index()?,
                 BytecodeInstruction::PushNull => self.instruction_push_null(),
                 BytecodeInstruction::PushBoolean(value) => self.instruction_push_boolean(*value),
                 BytecodeInstruction::PushNumber(value) => self.instruction_push_number(*value),
@@ -62,6 +61,8 @@ impl Vm {
                 BytecodeInstruction::AssignVariable(name) => {
                     self.instruction_assign_variable(name)?
                 }
+                BytecodeInstruction::GetIndex => self.instruction_get_index()?,
+                BytecodeInstruction::SetIndex => self.instruction_set_index()?,
                 BytecodeInstruction::JumpIf(destination) => {
                     if self.pop().to_boolean() {
                         next = *destination;
@@ -89,6 +90,41 @@ impl Vm {
     fn instruction_assign_variable(&mut self, name: &str) -> Result<(), VmError> {
         let value = self.pop();
         self.scopes.assign(name, value)
+    }
+
+    fn instruction_get_index(&mut self) -> Result<(), VmError> {
+        let index = self.pop();
+        let target = self.pop();
+
+        self.push(match target {
+            Value::List(list) => list.borrow().get(index)?,
+            _ => {
+                return Err(VmError::InvalidIndexAccess {
+                    target_type: target.type_of(),
+                    index: index.to_string(),
+                })
+            }
+        });
+
+        Ok(())
+    }
+
+    fn instruction_set_index(&mut self) -> Result<(), VmError> {
+        let value = self.pop();
+        let index = self.pop();
+        let target = self.pop();
+
+        match target {
+            Value::List(list) => list.borrow_mut().set(index, value)?,
+            _ => {
+                return Err(VmError::InvalidIndexAssignment {
+                    target_type: target.type_of(),
+                    index: index.to_string(),
+                })
+            }
+        }
+
+        Ok(())
     }
 
     fn instruction_pop(&mut self) {
@@ -122,23 +158,6 @@ impl Vm {
 
     fn instruction_push_null(&mut self) {
         self.push(Value::Null);
-    }
-
-    fn instruction_get_index(&mut self) -> Result<(), VmError> {
-        let index = self.pop();
-        let target = self.pop();
-
-        self.push(match target {
-            Value::List(list) => list.borrow().get(index)?,
-            _ => {
-                return Err(VmError::InvalidIndexAccess {
-                    target_type: target.type_of(),
-                    index: index.to_string(),
-                })
-            }
-        });
-
-        Ok(())
     }
 
     fn instruction_push_boolean(&mut self, value: bool) {

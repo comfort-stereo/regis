@@ -114,6 +114,7 @@ expression = _{
 
 variable_declaration_statement = { keyword_let ~ br? ~ identifier ~ br? ~ "=" ~ br? ~ expression }
 variable_assignment_statement = { identifier ~ br? ~ assignment_operator ~ br? ~ expression }
+index_assignment_statement = { index_expressions ~ br? ~ assignment_operator ~ br? ~ expression }
 break_statement = { keyword_break }
 continue_statement = { keyword_continue }
 echo_statement = { keyword_echo ~ br? ~ expression }
@@ -121,6 +122,7 @@ echo_statement = { keyword_echo ~ br? ~ expression }
 exec_statement = _{
       variable_declaration_statement
     | variable_assignment_statement
+    | index_assignment_statement
     | break_statement
     | continue_statement
     | echo_statement

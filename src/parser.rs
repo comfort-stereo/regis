@@ -67,6 +67,11 @@ pub enum AstNodeVariant {
         operator: AssignmentOperator,
         value: Box<AstNode>,
     },
+    IndexAssignmentStatement {
+        index: Box<AstNode>,
+        operator: AssignmentOperator,
+        value: Box<AstNode>,
+    },
     Null,
     Boolean {
         value: bool,
@@ -132,6 +137,27 @@ pub enum BinaryOperator {
     Ncl,
 }
 
+impl BinaryOperator {
+    fn from_rule(rule: &Rule) -> Self {
+        match rule {
+            Rule::operator_binary_mul => BinaryOperator::Mul,
+            Rule::operator_binary_div => BinaryOperator::Div,
+            Rule::operator_binary_add => BinaryOperator::Add,
+            Rule::operator_binary_sub => BinaryOperator::Sub,
+            Rule::operator_binary_gt => BinaryOperator::Gt,
+            Rule::operator_binary_lt => BinaryOperator::Lt,
+            Rule::operator_binary_gte => BinaryOperator::Gte,
+            Rule::operator_binary_lte => BinaryOperator::Lte,
+            Rule::operator_binary_eq => BinaryOperator::Eq,
+            Rule::operator_binary_neq => BinaryOperator::Neq,
+            Rule::operator_binary_and => BinaryOperator::And,
+            Rule::operator_binary_or => BinaryOperator::Or,
+            Rule::operator_binary_ncl => BinaryOperator::Ncl,
+            _ => unreachable!(),
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum AssignmentOperator {
     Direct,
@@ -142,6 +168,22 @@ pub enum AssignmentOperator {
     And,
     Or,
     Ncl,
+}
+
+impl AssignmentOperator {
+    fn from_rule(rule: &Rule) -> Self {
+        match rule {
+            Rule::operator_assign_direct => AssignmentOperator::Direct,
+            Rule::operator_assign_mul => AssignmentOperator::Mul,
+            Rule::operator_assign_div => AssignmentOperator::Div,
+            Rule::operator_assign_add => AssignmentOperator::Add,
+            Rule::operator_assign_sub => AssignmentOperator::Sub,
+            Rule::operator_assign_and => AssignmentOperator::And,
+            Rule::operator_assign_or => AssignmentOperator::Or,
+            Rule::operator_assign_ncl => AssignmentOperator::Ncl,
+            _ => unreachable!(),
+        }
+    }
 }
 
 pub fn parse(root: AstRoot, code: &str) -> Result<Box<AstNode>, Error<Rule>> {
@@ -240,17 +282,18 @@ fn build(pair: Pair<Rule>) -> Box<AstNode> {
                 &span,
                 AstNodeVariant::VariableAssignmentStatement {
                     name: content(&next(&mut inner)),
-                    operator: match &next(&mut inner).as_rule() {
-                        Rule::operator_assign_direct => AssignmentOperator::Direct,
-                        Rule::operator_assign_mul => AssignmentOperator::Mul,
-                        Rule::operator_assign_div => AssignmentOperator::Div,
-                        Rule::operator_assign_add => AssignmentOperator::Add,
-                        Rule::operator_assign_sub => AssignmentOperator::Sub,
-                        Rule::operator_assign_and => AssignmentOperator::And,
-                        Rule::operator_assign_or => AssignmentOperator::Or,
-                        Rule::operator_assign_ncl => AssignmentOperator::Ncl,
-                        _ => unreachable!(),
-                    },
+                    operator: AssignmentOperator::from_rule(&next(&mut inner).as_rule()),
+                    value: build(next(&mut inner)),
+                },
+            )
+        }
+        Rule::index_assignment_statement => {
+            let mut inner = pair.into_inner();
+            AstNode::create(
+                &span,
+                AstNodeVariant::IndexAssignmentStatement {
+                    index: build(next(&mut inner)),
+                    operator: AssignmentOperator::from_rule(&next(&mut inner).as_rule()),
                     value: build(next(&mut inner)),
                 },
             )
@@ -329,22 +372,7 @@ fn build(pair: Pair<Rule>) -> Box<AstNode> {
                 inner,
                 |pair: Pair<Rule>| build(pair),
                 |left: Box<AstNode>, operator: Pair<Rule>, right: Box<AstNode>| {
-                    let operator = match operator.as_rule() {
-                        Rule::operator_binary_mul => BinaryOperator::Mul,
-                        Rule::operator_binary_div => BinaryOperator::Div,
-                        Rule::operator_binary_add => BinaryOperator::Add,
-                        Rule::operator_binary_sub => BinaryOperator::Sub,
-                        Rule::operator_binary_gt => BinaryOperator::Gt,
-                        Rule::operator_binary_lt => BinaryOperator::Lt,
-                        Rule::operator_binary_gte => BinaryOperator::Gte,
-                        Rule::operator_binary_lte => BinaryOperator::Lte,
-                        Rule::operator_binary_eq => BinaryOperator::Eq,
-                        Rule::operator_binary_neq => BinaryOperator::Neq,
-                        Rule::operator_binary_and => BinaryOperator::And,
-                        Rule::operator_binary_or => BinaryOperator::Or,
-                        Rule::operator_binary_ncl => BinaryOperator::Ncl,
-                        _ => unreachable!(),
-                    };
+                    let operator = BinaryOperator::from_rule(&operator.as_rule());
                     AstNode::create(
                         &span,
                         AstNodeVariant::BinaryOperation {

@@ -60,7 +60,7 @@ impl List {
                 if number < 0f64 || index >= self.values.len() {
                     return Err(VmError::InvalidIndexAssignment {
                         target_type: self.type_of(),
-                        index: index.to_string(),
+                        index: number.to_string(),
                     });
                 }
 

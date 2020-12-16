@@ -41,7 +41,7 @@ fn main() {
 
     // println!("{:#?}", ast);
     let chunk = compile(&ast.unwrap());
-    // println!("Chunk: {:#?}", chunk);
+    println!("Chunk: {:#?}", chunk);
     let mut vm = Vm::new();
     match vm.run_chunk(chunk) {
         Ok(()) => {}
