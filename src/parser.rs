@@ -1,3 +1,4 @@
+use crate::unescape::unescape;
 use lazy_static;
 use pest::error::Error;
 use pest::iterators::{Pair, Pairs};
@@ -77,8 +78,10 @@ pub enum AstNodeVariant {
         value: bool,
     },
     Number {
-        text: String,
         value: f64,
+    },
+    String {
+        value: String,
     },
     Identifier {
         name: String,
@@ -248,7 +251,12 @@ fn build(pair: Pair<Rule>) -> Box<AstNode> {
             &span,
             AstNodeVariant::Number {
                 value: content(&pair).parse::<f64>().unwrap(),
-                text: content(&pair),
+            },
+        ),
+        Rule::string => AstNode::create(
+            &span,
+            AstNodeVariant::String {
+                value: unescape(&next(&mut pair.into_inner()).as_str()).unwrap(),
             },
         ),
         Rule::identifier => AstNode::create(

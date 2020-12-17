@@ -5,6 +5,7 @@ pub enum ValueType {
     Null,
     Boolean,
     Number,
+    String,
     List,
 }
 
@@ -14,6 +15,7 @@ impl Display for ValueType {
             ValueType::Null => write!(formatter, "null"),
             ValueType::Boolean => write!(formatter, "boolean"),
             ValueType::Number => write!(formatter, "number"),
+            ValueType::String => write!(formatter, "string"),
             ValueType::List => write!(formatter, "list"),
         }
     }

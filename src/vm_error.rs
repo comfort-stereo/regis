@@ -58,7 +58,7 @@ impl Display for VmError {
             } => {
                 write!(
                     formatter,
-                    "Operation {} is not defined for types '{}' and '{}'",
+                    "Operation '{}' is not defined for types '{}' and '{}'",
                     operation, target_type, other_type,
                 )
             }

@@ -21,12 +21,21 @@ keyword_continue = _{ "continue" }
 null = @{ keyword_null }
 identifier = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
 boolean = @{ keyword_true | keyword_false }
-number = @{ "-"? ~ (ASCII_DIGIT+) ~ ("." ~ ASCII_DIGIT+)? }
+number = @{ "-"? ~ ("0" | ASCII_NONZERO_DIGIT ~ ASCII_DIGIT*) ~ ("." ~ ASCII_DIGIT+)? }
+
+string = ${ "\"" ~ chars ~ "\"" }
+chars = @{ char* }
+char = {
+    !("\"" | "\\") ~ ANY
+    | "\\" ~ ("\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t")
+    | "\\" ~ ("u" ~ (ASCII_HEX_DIGIT{4} | ("{" ~ ASCII_HEX_DIGIT+ ~ "}")))
+}
 
 atom = _{
       null
     | boolean
     | number
+    | string
     | identifier
 }
 

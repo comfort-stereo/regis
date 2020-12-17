@@ -1,5 +1,6 @@
 use crate::bytecode::{BytecodeChunk, BytecodeInstruction};
 use crate::list::List;
+use crate::shared::Shared;
 use crate::value::Value;
 use crate::vm_error::VmError;
 
@@ -52,6 +53,9 @@ impl Vm {
                 BytecodeInstruction::PushNull => self.instruction_push_null(),
                 BytecodeInstruction::PushBoolean(value) => self.instruction_push_boolean(*value),
                 BytecodeInstruction::PushNumber(value) => self.instruction_push_number(*value),
+                BytecodeInstruction::PushString(value) => {
+                    self.instruction_push_string(value.clone())
+                }
                 BytecodeInstruction::PushVariable(name) => self.instruction_push_variable(name)?,
                 BytecodeInstruction::CreateList => self.instruction_create_list(),
                 BytecodeInstruction::InPlacePush => self.instruction_in_place_push()?,
@@ -168,6 +172,10 @@ impl Vm {
         self.push(Value::Number(value));
     }
 
+    fn instruction_push_string(&mut self, value: String) {
+        self.push(Value::String(Shared::new(value)));
+    }
+
     fn instruction_push_variable(&mut self, name: &str) -> Result<(), VmError> {
         self.push(self.var(name)?);
         Ok(())
@@ -214,6 +222,22 @@ impl Vm {
             },
             (Value::List(left), Value::List(right)) => match instruction {
                 BytecodeInstruction::BinaryAdd => Some(Value::List(left.borrow().concat(right))),
+                _ => None,
+            },
+            (Value::String(left), right) => match instruction {
+                BytecodeInstruction::BinaryAdd => Some(Value::String(Shared::new(format!(
+                    "{}{}",
+                    left.borrow(),
+                    right.to_string()
+                )))),
+                _ => None,
+            },
+            (left, Value::String(right)) => match instruction {
+                BytecodeInstruction::BinaryAdd => Some(Value::String(Shared::new(format!(
+                    "{}{}",
+                    left.to_string(),
+                    right.borrow()
+                )))),
                 _ => None,
             },
             _ => None,

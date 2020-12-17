@@ -9,6 +9,7 @@ mod bytecode;
 mod list;
 mod parser;
 mod shared;
+mod unescape;
 mod value;
 mod value_type;
 mod vm;
@@ -41,7 +42,7 @@ fn main() {
 
     // println!("{:#?}", ast);
     let chunk = compile(&ast.unwrap());
-    println!("Chunk: {:#?}", chunk);
+    // println!("Chunk: {:#?}", chunk);
     let mut vm = Vm::new();
     match vm.run_chunk(chunk) {
         Ok(()) => {}

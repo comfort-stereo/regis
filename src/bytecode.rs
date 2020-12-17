@@ -28,6 +28,7 @@ pub enum BytecodeInstruction {
     PushNull,
     PushBoolean(bool),
     PushNumber(f64),
+    PushString(String),
     CreateList,
     InPlacePush,
     PushVariable(String),
@@ -146,6 +147,9 @@ pub fn emit(node: &Box<AstNode>, code: &mut BytecodeChunk) {
         }
         AstNodeVariant::Number { value, .. } => {
             code.add(BytecodeInstruction::PushNumber(*value));
+        }
+        AstNodeVariant::String { value, .. } => {
+            code.add(BytecodeInstruction::PushString(value.into()));
         }
         AstNodeVariant::Identifier { name } => {
             code.add(BytecodeInstruction::PushVariable(name.into()));
@@ -416,7 +420,6 @@ fn finalize(code: &mut BytecodeChunk) {
                 } else if code.has_marker(j, BytecodeMarker::LoopEnd) {
                     if depth == 0 {
                         code.set(i, BytecodeInstruction::Jump(j));
-                        println!("GOOOOD");
                         break;
                     }
 
