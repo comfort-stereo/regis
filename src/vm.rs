@@ -56,14 +56,14 @@ impl Vm {
                 BytecodeInstruction::PushString(value) => {
                     self.instruction_push_string(value.clone())
                 }
-                BytecodeInstruction::PushVariable(name) => self.instruction_push_variable(name)?,
+                BytecodeInstruction::PushVariable(name) => self.instruction_push_variable(&name)?,
                 BytecodeInstruction::CreateList => self.instruction_create_list(),
                 BytecodeInstruction::InPlacePush => self.instruction_in_place_push()?,
                 BytecodeInstruction::DeclareVariable(name) => {
-                    self.instruction_declare_variable(name)?
+                    self.instruction_declare_variable(name.clone())?
                 }
                 BytecodeInstruction::AssignVariable(name) => {
-                    self.instruction_assign_variable(name)?
+                    self.instruction_assign_variable(name.clone())?
                 }
                 BytecodeInstruction::GetIndex => self.instruction_get_index()?,
                 BytecodeInstruction::SetIndex => self.instruction_set_index()?,
@@ -87,11 +87,11 @@ impl Vm {
         Ok(())
     }
 
-    fn instruction_declare_variable(&mut self, name: &str) -> Result<(), VmError> {
+    fn instruction_declare_variable(&mut self, name: Shared<String>) -> Result<(), VmError> {
         self.scopes.declare(name)
     }
 
-    fn instruction_assign_variable(&mut self, name: &str) -> Result<(), VmError> {
+    fn instruction_assign_variable(&mut self, name: Shared<String>) -> Result<(), VmError> {
         let value = self.pop();
         self.scopes.assign(name, value)
     }
@@ -172,11 +172,11 @@ impl Vm {
         self.push(Value::Number(value));
     }
 
-    fn instruction_push_string(&mut self, value: String) {
-        self.push(Value::String(Shared::new(value)));
+    fn instruction_push_string(&mut self, value: Shared<String>) {
+        self.push(Value::String(value));
     }
 
-    fn instruction_push_variable(&mut self, name: &str) -> Result<(), VmError> {
+    fn instruction_push_variable(&mut self, name: &Shared<String>) -> Result<(), VmError> {
         self.push(self.var(name)?);
         Ok(())
     }
@@ -305,17 +305,19 @@ impl Vm {
         result.clone()
     }
 
-    fn var(&self, name: &str) -> Result<Value, VmError> {
+    fn var(&self, name: &Shared<String>) -> Result<Value, VmError> {
         let value = self.scopes.get(name);
         match value {
             Some(value) => Ok(value.clone()),
-            None => Err(VmError::UndefinedVariableAccess { name: name.into() }),
+            None => Err(VmError::UndefinedVariableAccess {
+                name: name.borrow().clone(),
+            }),
         }
     }
 }
 
 struct ScopeManager {
-    scopes: Vec<HashMap<String, Value>>,
+    scopes: Vec<HashMap<Shared<String>, Value>>,
 }
 
 impl ScopeManager {
@@ -337,7 +339,7 @@ impl ScopeManager {
         self.scopes.pop();
     }
 
-    pub fn get(&self, name: &str) -> Option<&Value> {
+    pub fn get(&self, name: &Shared<String>) -> Option<&Value> {
         for scope in self.scopes.iter().rev() {
             if let Some(value) = scope.get(name) {
                 return Some(value);
@@ -347,21 +349,25 @@ impl ScopeManager {
         None
     }
 
-    pub fn assign(&mut self, name: &str, value: Value) -> Result<(), VmError> {
+    pub fn assign(&mut self, name: Shared<String>, value: Value) -> Result<(), VmError> {
         for scope in self.scopes.iter_mut().rev() {
-            if scope.contains_key(name) {
-                scope.insert(name.into(), value);
+            if scope.contains_key(&name) {
+                scope.insert(name, value);
                 return Ok(());
             }
         }
 
-        Err(VmError::UndefinedVariableAssignment { name: name.into() })
+        Err(VmError::UndefinedVariableAssignment {
+            name: name.borrow().clone(),
+        })
     }
 
-    pub fn declare(&mut self, name: &str) -> Result<(), VmError> {
+    pub fn declare(&mut self, name: Shared<String>) -> Result<(), VmError> {
         let scope = self.scopes.last_mut().unwrap();
-        if scope.insert(name.into(), Value::Null).is_some() {
-            return Err(VmError::VariableRedeclaration { name: name.into() });
+        if scope.insert(name.clone(), Value::Null).is_some() {
+            return Err(VmError::VariableRedeclaration {
+                name: name.borrow().clone(),
+            });
         }
 
         Ok(())

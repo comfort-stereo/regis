@@ -1,3 +1,4 @@
+use crate::shared::Shared;
 use crate::unescape::unescape;
 use lazy_static;
 use pest::error::Error;
@@ -60,11 +61,11 @@ pub enum AstNodeVariant {
         value: Box<AstNode>,
     },
     VariableDeclarationStatement {
-        name: String,
+        name: Shared<String>,
         value: Box<AstNode>,
     },
     VariableAssignmentStatement {
-        name: String,
+        name: Shared<String>,
         operator: AssignmentOperator,
         value: Box<AstNode>,
     },
@@ -81,10 +82,10 @@ pub enum AstNodeVariant {
         value: f64,
     },
     String {
-        value: String,
+        value: Shared<String>,
     },
     Identifier {
-        name: String,
+        name: Shared<String>,
     },
     List {
         values: Vec<Box<AstNode>>,
@@ -256,13 +257,13 @@ fn build(pair: Pair<Rule>) -> Box<AstNode> {
         Rule::string => AstNode::create(
             &span,
             AstNodeVariant::String {
-                value: unescape(&next(&mut pair.into_inner()).as_str()).unwrap(),
+                value: Shared::new(unescape(&next(&mut pair.into_inner()).as_str()).unwrap()),
             },
         ),
         Rule::identifier => AstNode::create(
             &span,
             AstNodeVariant::Identifier {
-                name: content(&pair),
+                name: Shared::new(content(&pair)),
             },
         ),
         Rule::list => AstNode::create(
@@ -279,7 +280,7 @@ fn build(pair: Pair<Rule>) -> Box<AstNode> {
             AstNode::create(
                 &span,
                 AstNodeVariant::VariableDeclarationStatement {
-                    name: content(&next(&mut inner)),
+                    name: Shared::new(content(&next(&mut inner))),
                     value: build(next(&mut inner)),
                 },
             )
@@ -289,7 +290,7 @@ fn build(pair: Pair<Rule>) -> Box<AstNode> {
             AstNode::create(
                 &span,
                 AstNodeVariant::VariableAssignmentStatement {
-                    name: content(&next(&mut inner)),
+                    name: Shared::new(content(&next(&mut inner))),
                     operator: AssignmentOperator::from_rule(&next(&mut inner).as_rule()),
                     value: build(next(&mut inner)),
                 },

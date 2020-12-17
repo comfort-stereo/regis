@@ -2,7 +2,7 @@ use std::char;
 use std::collections::VecDeque;
 
 pub fn unescape(string: &str) -> Option<String> {
-    let mut characters: VecDeque<_> = String::from(string).chars().collect();
+    let mut characters = String::from(string).chars().collect::<VecDeque<_>>();
     let mut result = String::new();
 
     while let Some(character) = characters.pop_front() {

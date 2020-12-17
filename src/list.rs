@@ -8,6 +8,14 @@ pub struct List {
     values: Vec<Value>,
 }
 
+impl PartialEq for List {
+    fn eq(&self, other: &Self) -> bool {
+        std::ptr::eq(self, other)
+    }
+}
+
+impl Eq for List {}
+
 impl List {
     fn new() -> List {
         List { values: Vec::new() }

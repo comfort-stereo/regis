@@ -1,4 +1,5 @@
 use crate::parser::{AssignmentOperator, AstNode, AstNodeVariant, BinaryOperator};
+use crate::shared::Shared;
 use std::fmt::Formatter;
 use std::fmt::{Debug, Result};
 
@@ -28,12 +29,12 @@ pub enum BytecodeInstruction {
     PushNull,
     PushBoolean(bool),
     PushNumber(f64),
-    PushString(String),
+    PushString(Shared<String>),
     CreateList,
     InPlacePush,
-    PushVariable(String),
-    DeclareVariable(String),
-    AssignVariable(String),
+    PushVariable(Shared<String>),
+    DeclareVariable(Shared<String>),
+    AssignVariable(Shared<String>),
     JumpIf(usize),
     JumpUnless(usize),
     Jump(usize),
@@ -149,10 +150,10 @@ pub fn emit(node: &Box<AstNode>, code: &mut BytecodeChunk) {
             code.add(BytecodeInstruction::PushNumber(*value));
         }
         AstNodeVariant::String { value, .. } => {
-            code.add(BytecodeInstruction::PushString(value.into()));
+            code.add(BytecodeInstruction::PushString(value.clone()));
         }
         AstNodeVariant::Identifier { name } => {
-            code.add(BytecodeInstruction::PushVariable(name.into()));
+            code.add(BytecodeInstruction::PushVariable(name.clone()));
         }
         AstNodeVariant::List { values } => {
             code.add(BytecodeInstruction::CreateList);
@@ -164,7 +165,7 @@ pub fn emit(node: &Box<AstNode>, code: &mut BytecodeChunk) {
         AstNodeVariant::VariableDeclarationStatement { name, value } => {
             code.add(BytecodeInstruction::DeclareVariable(name.clone()));
             emit(value, code);
-            code.add(BytecodeInstruction::AssignVariable(name.into()));
+            code.add(BytecodeInstruction::AssignVariable(name.clone()));
         }
         AstNodeVariant::VariableAssignmentStatement {
             name,
@@ -172,7 +173,7 @@ pub fn emit(node: &Box<AstNode>, code: &mut BytecodeChunk) {
             value,
         } => {
             if *operator != AssignmentOperator::Direct {
-                code.add(BytecodeInstruction::PushVariable(name.into()));
+                code.add(BytecodeInstruction::PushVariable(name.clone()));
             }
 
             match operator {
@@ -206,7 +207,7 @@ pub fn emit(node: &Box<AstNode>, code: &mut BytecodeChunk) {
                 }
             }
 
-            code.add(BytecodeInstruction::AssignVariable(name.into()));
+            code.add(BytecodeInstruction::AssignVariable(name.clone()));
         }
         AstNodeVariant::IndexAssignmentStatement {
             index,
