@@ -1,4 +1,4 @@
-use crate::shared::Shared;
+use crate::shared::SharedImmutable;
 use crate::unescape::unescape;
 use lazy_static;
 use pest::error::Error;
@@ -35,18 +35,6 @@ impl AstNode {
         })
     }
 
-    pub fn id(&self) -> Uuid {
-        self.id
-    }
-
-    pub fn end(&self) -> usize {
-        self.end
-    }
-
-    pub fn start(&self) -> usize {
-        self.start
-    }
-
     pub fn variant(&self) -> &AstNodeVariant {
         &self.variant
     }
@@ -61,11 +49,11 @@ pub enum AstNodeVariant {
         value: Box<AstNode>,
     },
     VariableDeclarationStatement {
-        name: Shared<String>,
+        name: SharedImmutable<String>,
         value: Box<AstNode>,
     },
     VariableAssignmentStatement {
-        name: Shared<String>,
+        name: SharedImmutable<String>,
         operator: AssignmentOperator,
         value: Box<AstNode>,
     },
@@ -82,10 +70,10 @@ pub enum AstNodeVariant {
         value: f64,
     },
     String {
-        value: Shared<String>,
+        value: SharedImmutable<String>,
     },
     Identifier {
-        name: Shared<String>,
+        name: SharedImmutable<String>,
     },
     List {
         values: Vec<Box<AstNode>>,
@@ -257,13 +245,15 @@ fn build(pair: Pair<Rule>) -> Box<AstNode> {
         Rule::string => AstNode::create(
             &span,
             AstNodeVariant::String {
-                value: Shared::new(unescape(&next(&mut pair.into_inner()).as_str()).unwrap()),
+                value: SharedImmutable::new(
+                    unescape(&next(&mut pair.into_inner()).as_str()).unwrap(),
+                ),
             },
         ),
         Rule::identifier => AstNode::create(
             &span,
             AstNodeVariant::Identifier {
-                name: Shared::new(content(&pair)),
+                name: SharedImmutable::new(content(&pair)),
             },
         ),
         Rule::list => AstNode::create(
@@ -280,7 +270,7 @@ fn build(pair: Pair<Rule>) -> Box<AstNode> {
             AstNode::create(
                 &span,
                 AstNodeVariant::VariableDeclarationStatement {
-                    name: Shared::new(content(&next(&mut inner))),
+                    name: SharedImmutable::new(content(&next(&mut inner))),
                     value: build(next(&mut inner)),
                 },
             )
@@ -290,7 +280,7 @@ fn build(pair: Pair<Rule>) -> Box<AstNode> {
             AstNode::create(
                 &span,
                 AstNodeVariant::VariableAssignmentStatement {
-                    name: Shared::new(content(&next(&mut inner))),
+                    name: SharedImmutable::new(content(&next(&mut inner))),
                     operator: AssignmentOperator::from_rule(&next(&mut inner).as_rule()),
                     value: build(next(&mut inner)),
                 },

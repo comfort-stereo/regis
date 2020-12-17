@@ -1,5 +1,5 @@
 use crate::list::List;
-use crate::shared::Shared;
+use crate::shared::{SharedImmutable, SharedMutable};
 use crate::value_type::ValueType;
 
 #[derive(Debug)]
@@ -7,8 +7,8 @@ pub enum Value {
     Null,
     Boolean(bool),
     Number(f64),
-    String(Shared<String>),
-    List(Shared<List>),
+    String(SharedImmutable<String>),
+    List(SharedMutable<List>),
 }
 
 impl Clone for Value {
@@ -29,7 +29,7 @@ impl PartialEq for Value {
             (Value::Null, Value::Null) => true,
             (Value::Boolean(left), Value::Boolean(right)) => left == right,
             (Value::Number(left), Value::Number(right)) => left == right,
-            (Value::String(left), Value::String(right)) => *left.borrow() == *right.borrow(),
+            (Value::String(left), Value::String(right)) => *left == *right,
             (Value::List(left), Value::List(right)) => left == right,
             _ => false,
         }
@@ -64,7 +64,7 @@ impl Value {
             Value::Null => "null".into(),
             Value::Boolean(value) => value.to_string(),
             Value::Number(value) => value.to_string(),
-            Value::String(value) => value.borrow().clone(),
+            Value::String(value) => (**value).clone(),
             Value::List(list) => list.borrow().to_string(),
         }
     }

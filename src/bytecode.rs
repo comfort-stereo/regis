@@ -1,9 +1,7 @@
 use crate::parser::{AssignmentOperator, AstNode, AstNodeVariant, BinaryOperator};
-use crate::shared::Shared;
-use std::fmt::Formatter;
-use std::fmt::{Debug, Result};
-
+use crate::shared::SharedImmutable;
 use std::collections::{BTreeMap, HashSet};
+use std::fmt::{Debug, Formatter, Result};
 use std::hash::Hash;
 
 #[derive(Debug, Clone)]
@@ -29,12 +27,12 @@ pub enum BytecodeInstruction {
     PushNull,
     PushBoolean(bool),
     PushNumber(f64),
-    PushString(Shared<String>),
+    PushString(SharedImmutable<String>),
     CreateList,
     InPlacePush,
-    PushVariable(Shared<String>),
-    DeclareVariable(Shared<String>),
-    AssignVariable(Shared<String>),
+    PushVariable(SharedImmutable<String>),
+    DeclareVariable(SharedImmutable<String>),
+    AssignVariable(SharedImmutable<String>),
     JumpIf(usize),
     JumpUnless(usize),
     Jump(usize),

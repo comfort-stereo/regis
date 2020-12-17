@@ -1,6 +1,6 @@
 use crate::bytecode::{BytecodeChunk, BytecodeInstruction};
 use crate::list::List;
-use crate::shared::Shared;
+use crate::shared::{SharedImmutable, SharedMutable};
 use crate::value::Value;
 use crate::vm_error::VmError;
 
@@ -87,11 +87,17 @@ impl Vm {
         Ok(())
     }
 
-    fn instruction_declare_variable(&mut self, name: Shared<String>) -> Result<(), VmError> {
+    fn instruction_declare_variable(
+        &mut self,
+        name: SharedImmutable<String>,
+    ) -> Result<(), VmError> {
         self.scopes.declare(name)
     }
 
-    fn instruction_assign_variable(&mut self, name: Shared<String>) -> Result<(), VmError> {
+    fn instruction_assign_variable(
+        &mut self,
+        name: SharedImmutable<String>,
+    ) -> Result<(), VmError> {
         let value = self.pop();
         self.scopes.assign(name, value)
     }
@@ -172,17 +178,17 @@ impl Vm {
         self.push(Value::Number(value));
     }
 
-    fn instruction_push_string(&mut self, value: Shared<String>) {
+    fn instruction_push_string(&mut self, value: SharedImmutable<String>) {
         self.push(Value::String(value));
     }
 
-    fn instruction_push_variable(&mut self, name: &Shared<String>) -> Result<(), VmError> {
+    fn instruction_push_variable(&mut self, name: &SharedImmutable<String>) -> Result<(), VmError> {
         self.push(self.var(name)?);
         Ok(())
     }
 
     fn instruction_create_list(&mut self) {
-        self.push(Value::List(List::create()));
+        self.push(Value::List(SharedMutable::new(List::new())));
     }
 
     fn instruction_in_place_push(&mut self) -> Result<(), VmError> {
@@ -225,19 +231,15 @@ impl Vm {
                 _ => None,
             },
             (Value::String(left), right) => match instruction {
-                BytecodeInstruction::BinaryAdd => Some(Value::String(Shared::new(format!(
-                    "{}{}",
-                    left.borrow(),
-                    right.to_string()
-                )))),
+                BytecodeInstruction::BinaryAdd => Some(Value::String(SharedImmutable::new(
+                    format!("{}{}", *left, right.to_string()),
+                ))),
                 _ => None,
             },
             (left, Value::String(right)) => match instruction {
-                BytecodeInstruction::BinaryAdd => Some(Value::String(Shared::new(format!(
-                    "{}{}",
-                    left.to_string(),
-                    right.borrow()
-                )))),
+                BytecodeInstruction::BinaryAdd => Some(Value::String(SharedImmutable::new(
+                    format!("{}{}", left.to_string(), *right),
+                ))),
                 _ => None,
             },
             _ => None,
@@ -305,19 +307,19 @@ impl Vm {
         result.clone()
     }
 
-    fn var(&self, name: &Shared<String>) -> Result<Value, VmError> {
+    fn var(&self, name: &SharedImmutable<String>) -> Result<Value, VmError> {
         let value = self.scopes.get(name);
         match value {
             Some(value) => Ok(value.clone()),
             None => Err(VmError::UndefinedVariableAccess {
-                name: name.borrow().clone(),
+                name: (**name).clone(),
             }),
         }
     }
 }
 
 struct ScopeManager {
-    scopes: Vec<HashMap<Shared<String>, Value>>,
+    scopes: Vec<HashMap<SharedImmutable<String>, Value>>,
 }
 
 impl ScopeManager {
@@ -339,7 +341,7 @@ impl ScopeManager {
         self.scopes.pop();
     }
 
-    pub fn get(&self, name: &Shared<String>) -> Option<&Value> {
+    pub fn get(&self, name: &SharedImmutable<String>) -> Option<&Value> {
         for scope in self.scopes.iter().rev() {
             if let Some(value) = scope.get(name) {
                 return Some(value);
@@ -349,7 +351,7 @@ impl ScopeManager {
         None
     }
 
-    pub fn assign(&mut self, name: Shared<String>, value: Value) -> Result<(), VmError> {
+    pub fn assign(&mut self, name: SharedImmutable<String>, value: Value) -> Result<(), VmError> {
         for scope in self.scopes.iter_mut().rev() {
             if scope.contains_key(&name) {
                 scope.insert(name, value);
@@ -358,15 +360,15 @@ impl ScopeManager {
         }
 
         Err(VmError::UndefinedVariableAssignment {
-            name: name.borrow().clone(),
+            name: (*name).clone(),
         })
     }
 
-    pub fn declare(&mut self, name: Shared<String>) -> Result<(), VmError> {
+    pub fn declare(&mut self, name: SharedImmutable<String>) -> Result<(), VmError> {
         let scope = self.scopes.last_mut().unwrap();
         if scope.insert(name.clone(), Value::Null).is_some() {
             return Err(VmError::VariableRedeclaration {
-                name: name.borrow().clone(),
+                name: (*name).clone(),
             });
         }
 

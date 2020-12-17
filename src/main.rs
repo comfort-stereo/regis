@@ -18,9 +18,7 @@ mod vm_error;
 use crate::bytecode::*;
 use crate::parser::{parse, AstRoot};
 use crate::vm::Vm;
-use std::env;
-use std::fs;
-use std::process;
+use std::{env, fs, process};
 
 fn main() {
     let args = env::args().collect::<Vec<String>>();

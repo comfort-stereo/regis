@@ -1,23 +1,22 @@
-use std::cell::Ref;
-use std::cell::RefCell;
-use std::cell::RefMut;
+use std::cell::{Ref, RefCell, RefMut};
 use std::hash::{Hash, Hasher};
+use std::ops::Deref;
 use std::rc::Rc;
 
 #[derive(Debug)]
-pub struct Shared<T> {
+pub struct SharedMutable<T> {
     inner: Rc<RefCell<T>>,
 }
 
-impl<T> Clone for Shared<T> {
+impl<T> Clone for SharedMutable<T> {
     fn clone(&self) -> Self {
-        Shared {
+        SharedMutable {
             inner: Rc::clone(&self.inner),
         }
     }
 }
 
-impl<T> Hash for Shared<T>
+impl<T> Hash for SharedMutable<T>
 where
     T: Hash,
 {
@@ -26,7 +25,7 @@ where
     }
 }
 
-impl<T> PartialEq for Shared<T>
+impl<T> PartialEq for SharedMutable<T>
 where
     T: PartialEq,
 {
@@ -35,11 +34,11 @@ where
     }
 }
 
-impl<T> Eq for Shared<T> where T: PartialEq {}
+impl<T> Eq for SharedMutable<T> where T: PartialEq {}
 
-impl<T> Shared<T> {
+impl<T> SharedMutable<T> {
     pub fn new(value: T) -> Self {
-        Shared {
+        SharedMutable {
             inner: Rc::new(RefCell::new(value)),
         }
     }
@@ -56,6 +55,14 @@ impl<T> Shared<T> {
 #[derive(Debug)]
 pub struct SharedImmutable<T> {
     inner: Rc<T>,
+}
+
+impl<T> Deref for SharedImmutable<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
 }
 
 impl<T> Clone for SharedImmutable<T> {

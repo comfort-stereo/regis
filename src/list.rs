@@ -1,4 +1,4 @@
-use crate::shared::Shared;
+use crate::shared::SharedMutable;
 use crate::value::Value;
 use crate::value_type::ValueType;
 use crate::vm_error::VmError;
@@ -17,12 +17,8 @@ impl PartialEq for List {
 impl Eq for List {}
 
 impl List {
-    fn new() -> List {
+    pub fn new() -> List {
         List { values: Vec::new() }
-    }
-
-    pub fn create() -> Shared<List> {
-        Shared::new(List::new())
     }
 
     pub fn type_of(&self) -> ValueType {
@@ -86,7 +82,7 @@ impl List {
         self.values.reserve(capacity);
     }
 
-    pub fn concat(&self, other: Shared<List>) -> Shared<List> {
+    pub fn concat(&self, other: SharedMutable<List>) -> SharedMutable<List> {
         let mut result = Self::new();
         result.reserve(self.count() + other.borrow().count());
 
@@ -97,7 +93,7 @@ impl List {
             result.push(value.clone())
         }
 
-        Shared::new(result)
+        SharedMutable::new(result)
     }
 
     pub fn push(&mut self, value: Value) {
