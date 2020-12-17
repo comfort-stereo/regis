@@ -20,10 +20,7 @@ pub fn unescape(string: &str) -> Option<String> {
             Some('\'') => result.push('\''),
             Some('\"') => result.push('\"'),
             Some('\\') => result.push('\\'),
-            Some('u') => result.push(match unescape_unicode(&mut characters) {
-                Some(unicode) => unicode,
-                None => continue,
-            }),
+            Some('u') => result.push(unescape_unicode(&mut characters)?),
             _ => return None,
         };
     }
@@ -34,24 +31,19 @@ pub fn unescape(string: &str) -> Option<String> {
 fn unescape_unicode(characters: &mut VecDeque<char>) -> Option<char> {
     let mut result = String::new();
 
-    match characters.pop_front() {
-        Some('{') => loop {
-            match characters.pop_front() {
-                Some('}') => break,
-                Some(character) => result.push(character),
-                None => return None,
+    match characters.pop_front()? {
+        '{' => loop {
+            match characters.pop_front()? {
+                '}' => break,
+                character => result.push(character),
             }
         },
-        Some(character) => {
+        character => {
             result.push(character);
             for _ in 0..3 {
-                match characters.pop_front() {
-                    Some(character) => result.push(character),
-                    None => return None,
-                }
+                result.push(characters.pop_front()?);
             }
         }
-        None => return None,
     }
 
     u32::from_str_radix(&result, 16).map_or(None, |value| char::from_u32(value))
