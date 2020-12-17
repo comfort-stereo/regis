@@ -17,7 +17,7 @@ impl PartialEq for List {
 impl Eq for List {}
 
 impl List {
-    pub fn new() -> List {
+    pub fn new() -> Self {
         List { values: Vec::new() }
     }
 
@@ -82,7 +82,7 @@ impl List {
         self.values.reserve(capacity);
     }
 
-    pub fn concat(&self, other: SharedMutable<List>) -> SharedMutable<List> {
+    pub fn concat(&self, other: SharedMutable<Self>) -> SharedMutable<Self> {
         let mut result = Self::new();
         result.reserve(self.count() + other.borrow().count());
 

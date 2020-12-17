@@ -68,8 +68,8 @@ impl Debug for BytecodeChunk {
 }
 
 impl BytecodeChunk {
-    pub fn new() -> BytecodeChunk {
-        BytecodeChunk {
+    pub fn new() -> Self {
+        Self {
             instructions: Vec::new(),
             markers: BTreeMap::new(),
         }

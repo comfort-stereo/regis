@@ -30,28 +30,28 @@ pub enum VmError {
 impl Display for VmError {
     fn fmt(&self, formatter: &mut Formatter) -> Result {
         match self {
-            VmError::UndefinedVariableAccess { name } => {
+            Self::UndefinedVariableAccess { name } => {
                 write!(
                     formatter,
                     "Attempted to access undefined variable '{}'",
                     name
                 )
             }
-            VmError::UndefinedVariableAssignment { name } => {
+            Self::UndefinedVariableAssignment { name } => {
                 write!(
                     formatter,
                     "Attempted assignment to undefined variable '{}'",
                     name
                 )
             }
-            VmError::VariableRedeclaration { name } => {
+            Self::VariableRedeclaration { name } => {
                 write!(
                     formatter,
                     "Redeclaration of previously defined variable '{}'",
                     name
                 )
             }
-            VmError::UndefinedBinaryOperation {
+            Self::UndefinedBinaryOperation {
                 operation,
                 target_type,
                 other_type,
@@ -62,14 +62,14 @@ impl Display for VmError {
                     operation, target_type, other_type,
                 )
             }
-            VmError::InvalidIndexAccess { target_type, index } => {
+            Self::InvalidIndexAccess { target_type, index } => {
                 write!(
                     formatter,
                     "Attempted to get invalid index '{}' of type '{}'",
                     index, target_type
                 )
             }
-            VmError::InvalidIndexAssignment { target_type, index } => {
+            Self::InvalidIndexAssignment { target_type, index } => {
                 write!(
                     formatter,
                     "Attempted to set invalid index '{}' of type '{}'",

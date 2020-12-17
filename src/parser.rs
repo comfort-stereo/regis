@@ -26,8 +26,8 @@ pub struct AstNode {
 }
 
 impl AstNode {
-    pub fn create(span: &Span, variant: AstNodeVariant) -> Box<AstNode> {
-        Box::new(AstNode {
+    pub fn create(span: &Span, variant: AstNodeVariant) -> Box<Self> {
+        Box::new(Self {
             id: Uuid::new_v4(),
             start: span.start(),
             end: span.end(),

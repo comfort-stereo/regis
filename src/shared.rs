@@ -10,7 +10,7 @@ pub struct SharedMutable<T> {
 
 impl<T> Clone for SharedMutable<T> {
     fn clone(&self) -> Self {
-        SharedMutable {
+        Self {
             inner: Rc::clone(&self.inner),
         }
     }
@@ -38,7 +38,7 @@ impl<T> Eq for SharedMutable<T> where T: PartialEq {}
 
 impl<T> SharedMutable<T> {
     pub fn new(value: T) -> Self {
-        SharedMutable {
+        Self {
             inner: Rc::new(RefCell::new(value)),
         }
     }
@@ -67,7 +67,7 @@ impl<T> Deref for SharedImmutable<T> {
 
 impl<T> Clone for SharedImmutable<T> {
     fn clone(&self) -> Self {
-        SharedImmutable {
+        Self {
             inner: Rc::clone(&self.inner),
         }
     }
@@ -95,7 +95,7 @@ impl<T> Eq for SharedImmutable<T> where T: PartialEq {}
 
 impl<T> SharedImmutable<T> {
     pub fn new(value: T) -> Self {
-        SharedImmutable {
+        Self {
             inner: Rc::new(value),
         }
     }

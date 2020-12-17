@@ -14,8 +14,8 @@ pub struct Vm {
 }
 
 impl Vm {
-    pub fn new() -> Vm {
-        Vm {
+    pub fn new() -> Self {
+        Self {
             stack: Vec::new(),
             scopes: ScopeManager::new(),
         }
@@ -323,8 +323,8 @@ struct ScopeManager {
 }
 
 impl ScopeManager {
-    pub fn new() -> ScopeManager {
-        ScopeManager {
+    pub fn new() -> Self {
+        Self {
             scopes: vec![HashMap::new()],
         }
     }
