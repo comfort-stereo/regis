@@ -44,9 +44,6 @@ pub enum AstNodeVariant {
     Module {
         statements: Vec<Box<AstNode>>,
     },
-    EchoStatement {
-        value: Box<AstNode>,
-    },
     VariableDeclarationStatement {
         name: SharedImmutable<String>,
         value: Box<AstNode>,
@@ -106,6 +103,12 @@ pub enum AstNodeVariant {
     },
     BreakStatement,
     ContinueStatement,
+    EchoStatement {
+        value: Box<AstNode>,
+    },
+    ExpressionStatement {
+        expression: Box<AstNode>,
+    },
     Block {
         statements: Vec<Box<AstNode>>,
     },
@@ -319,6 +322,15 @@ fn build(pair: Pair<Rule>) -> Box<AstNode> {
                 &span,
                 AstNodeVariant::EchoStatement {
                     value: build(next(&mut inner)),
+                },
+            )
+        }
+        Rule::expression_statement => {
+            let mut inner = pair.into_inner();
+            AstNode::create(
+                &span,
+                AstNodeVariant::ExpressionStatement {
+                    expression: build(next(&mut inner)),
                 },
             )
         }

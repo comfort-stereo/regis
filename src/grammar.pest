@@ -127,6 +127,7 @@ index_assignment_statement = { index_expressions ~ br? ~ assignment_operator ~ b
 break_statement = { keyword_break }
 continue_statement = { keyword_continue }
 echo_statement = { keyword_echo ~ br? ~ expression }
+expression_statement = { expression }
 
 exec_statement = _{
       variable_declaration_statement
@@ -135,6 +136,7 @@ exec_statement = _{
     | break_statement
     | continue_statement
     | echo_statement
+    | expression_statement
 }
 
 block = { "{" ~ br? ~ statement* ~ exec_statement? ~ br? ~ "}" }

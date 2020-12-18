@@ -308,6 +308,13 @@ pub fn emit(node: &Box<AstNode>, code: &mut BytecodeChunk) {
             code.mark(end_line, BytecodeMarker::LoopEnd);
             code.set(jump_line, BytecodeInstruction::Jump(end_line));
         }
+        AstNodeVariant::Block { statements } => {
+            code.add(BytecodeInstruction::PushScope);
+            for statement in statements {
+                emit(statement, code);
+            }
+            code.add(BytecodeInstruction::PopScope);
+        }
         AstNodeVariant::BreakStatement => {
             code.blank();
             code.mark(code.last(), BytecodeMarker::Break);
@@ -316,16 +323,13 @@ pub fn emit(node: &Box<AstNode>, code: &mut BytecodeChunk) {
             code.blank();
             code.mark(code.last(), BytecodeMarker::Continue);
         }
-        AstNodeVariant::Block { statements } => {
-            code.add(BytecodeInstruction::PushScope);
-            for statement in statements {
-                emit(statement, code);
-            }
-            code.add(BytecodeInstruction::PopScope);
-        }
         AstNodeVariant::EchoStatement { value } => {
             emit(value, code);
             code.add(BytecodeInstruction::Echo);
+        }
+        AstNodeVariant::ExpressionStatement { expression } => {
+            emit(expression, code);
+            code.add(BytecodeInstruction::Pop);
         }
         AstNodeVariant::Wrapped { value } => {
             emit(value, code);
