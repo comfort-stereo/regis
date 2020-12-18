@@ -6,18 +6,16 @@ extern crate pest_derive;
 extern crate uuid;
 
 mod bytecode;
+mod interpreter;
+mod interpreter_error;
 mod list;
 mod parser;
 mod shared;
 mod unescape;
 mod value;
 mod value_type;
-mod vm;
-mod vm_error;
 
-use crate::bytecode::*;
-use crate::parser::{parse, AstRoot};
-use crate::vm::Vm;
+use crate::interpreter::Interpreter;
 use std::{env, fs, process};
 
 fn main() {
@@ -36,13 +34,8 @@ fn main() {
         process::exit(3);
     });
 
-    let ast = parse(AstRoot::Module, &code);
-
-    // println!("{:#?}", ast);
-    let chunk = compile(&ast.unwrap());
-    // println!("Chunk: {:#?}", chunk);
-    let mut vm = Vm::new();
-    match vm.run_chunk(chunk) {
+    let mut vm = Interpreter::new();
+    match vm.run(&code) {
         Ok(()) => {}
         Err(error) => {
             println!("ERROR: {}", error);

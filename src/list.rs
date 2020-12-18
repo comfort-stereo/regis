@@ -1,7 +1,7 @@
+use crate::interpreter_error::InterpreterError;
 use crate::shared::SharedMutable;
 use crate::value::Value;
 use crate::value_type::ValueType;
-use crate::vm_error::VmError;
 
 #[derive(Debug)]
 pub struct List {
@@ -40,7 +40,7 @@ impl List {
         )
     }
 
-    pub fn get(&self, index: Value) -> Result<Value, VmError> {
+    pub fn get(&self, index: Value) -> Result<Value, InterpreterError> {
         match index {
             Value::Number(number) => {
                 let index = number as usize;
@@ -50,19 +50,19 @@ impl List {
 
                 Ok(self.values[index].clone())
             }
-            _ => Err(VmError::InvalidIndexAccess {
+            _ => Err(InterpreterError::InvalidIndexAccess {
                 target_type: self.type_of(),
                 index: index.to_string(),
             }),
         }
     }
 
-    pub fn set(&mut self, index: Value, value: Value) -> Result<(), VmError> {
+    pub fn set(&mut self, index: Value, value: Value) -> Result<(), InterpreterError> {
         match index {
             Value::Number(number) => {
                 let index = number as usize;
                 if number < 0f64 || index >= self.values.len() {
-                    return Err(VmError::InvalidIndexAssignment {
+                    return Err(InterpreterError::InvalidIndexAssignment {
                         target_type: self.type_of(),
                         index: number.to_string(),
                     });
@@ -71,7 +71,7 @@ impl List {
                 self.values[index] = value;
                 Ok(())
             }
-            _ => Err(VmError::InvalidIndexAssignment {
+            _ => Err(InterpreterError::InvalidIndexAssignment {
                 target_type: self.type_of(),
                 index: index.to_string(),
             }),

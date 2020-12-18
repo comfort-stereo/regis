@@ -2,7 +2,8 @@ use crate::value_type::ValueType;
 use std::fmt::{Display, Formatter, Result};
 
 #[derive(Debug)]
-pub enum VmError {
+pub enum InterpreterError {
+    ParseError,
     UndefinedVariableAccess {
         name: String,
     },
@@ -27,9 +28,12 @@ pub enum VmError {
     },
 }
 
-impl Display for VmError {
+impl Display for InterpreterError {
     fn fmt(&self, formatter: &mut Formatter) -> Result {
         match self {
+            Self::ParseError => {
+                write!(formatter, "Failed to parse.")
+            }
             Self::UndefinedVariableAccess { name } => {
                 write!(
                     formatter,

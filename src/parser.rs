@@ -12,11 +12,6 @@ use uuid::Uuid;
 #[grammar = "grammar.pest"]
 struct RegisParser;
 
-#[derive(Debug, PartialEq, Eq)]
-pub enum AstRoot {
-    Module,
-}
-
 #[derive(Debug)]
 pub struct AstNode {
     id: Uuid,
@@ -33,6 +28,10 @@ impl AstNode {
             end: span.end(),
             variant,
         })
+    }
+
+    pub fn id(&self) -> &Uuid {
+        &self.id
     }
 
     pub fn variant(&self) -> &AstNodeVariant {
@@ -178,16 +177,12 @@ impl AssignmentOperator {
     }
 }
 
-pub fn parse(root: AstRoot, code: &str) -> Result<Box<AstNode>, Error<Rule>> {
-    let rule = match root {
-        AstRoot::Module => Rule::module,
-    };
-
-    Ok(build(read(rule, code)?))
+pub fn parse(code: &str) -> Result<Box<AstNode>, Error<Rule>> {
+    Ok(build(read(code)?))
 }
 
-fn read(rule: Rule, code: &str) -> Result<Pair<Rule>, Error<Rule>> {
-    let pairs = RegisParser::parse(rule, code)?
+fn read(code: &str) -> Result<Pair<Rule>, Error<Rule>> {
+    let pairs = RegisParser::parse(Rule::module, code)?
         .into_iter()
         .collect::<Vec<_>>();
     for pair in pairs {
@@ -394,7 +389,7 @@ fn build(pair: Pair<Rule>) -> Box<AstNode> {
                     &span,
                     AstNodeVariant::Index {
                         target: current,
-                        index: index,
+                        index,
                     },
                 )
             }

@@ -1,19 +1,22 @@
-use crate::bytecode::{BytecodeChunk, BytecodeInstruction};
+use uuid::Uuid;
+
+use crate::bytecode::{compile, BytecodeChunk, BytecodeInstruction};
+use crate::interpreter_error::InterpreterError;
 use crate::list::List;
+use crate::parser::parse;
 use crate::shared::{SharedImmutable, SharedMutable};
 use crate::value::Value;
-use crate::vm_error::VmError;
 
 use std::collections::HashMap;
 
 static DEBUG: bool = false;
 
-pub struct Vm {
+pub struct Interpreter {
     stack: Vec<Value>,
     scopes: ScopeManager,
 }
 
-impl Vm {
+impl Interpreter {
     pub fn new() -> Self {
         Self {
             stack: Vec::new(),
@@ -21,8 +24,27 @@ impl Vm {
         }
     }
 
-    pub fn run_chunk(&mut self, chunk: BytecodeChunk) -> Result<(), VmError> {
+    pub fn run(&mut self, code: &str) -> Result<(), InterpreterError> {
+        let ast = match parse(&code) {
+            Ok(ast) => ast,
+            Err(..) => return Err(InterpreterError::ParseError),
+        };
+
+        let id = ast.id().clone();
+        let main = compile(&ast);
+        let mut chunks = HashMap::new();
+        chunks.insert(id, main);
+        self.run_chunk(&id, &chunks)
+    }
+
+    fn run_chunk(
+        &mut self,
+        chunk_id: &Uuid,
+        chunks: &HashMap<Uuid, BytecodeChunk>,
+    ) -> Result<(), InterpreterError> {
+        let chunk = chunks.get(chunk_id).unwrap();
         let mut line = 0;
+
         while line < chunk.instructions().len() {
             let instruction = chunk.get(line);
             let mut next = line + 1;
@@ -90,26 +112,26 @@ impl Vm {
     fn instruction_declare_variable(
         &mut self,
         name: SharedImmutable<String>,
-    ) -> Result<(), VmError> {
+    ) -> Result<(), InterpreterError> {
         self.scopes.declare(name)
     }
 
     fn instruction_assign_variable(
         &mut self,
         name: SharedImmutable<String>,
-    ) -> Result<(), VmError> {
+    ) -> Result<(), InterpreterError> {
         let value = self.pop();
         self.scopes.assign(name, value)
     }
 
-    fn instruction_get_index(&mut self) -> Result<(), VmError> {
+    fn instruction_get_index(&mut self) -> Result<(), InterpreterError> {
         let index = self.pop();
         let target = self.pop();
 
         self.push(match target {
             Value::List(list) => list.borrow().get(index)?,
             _ => {
-                return Err(VmError::InvalidIndexAccess {
+                return Err(InterpreterError::InvalidIndexAccess {
                     target_type: target.type_of(),
                     index: index.to_string(),
                 })
@@ -119,7 +141,7 @@ impl Vm {
         Ok(())
     }
 
-    fn instruction_set_index(&mut self) -> Result<(), VmError> {
+    fn instruction_set_index(&mut self) -> Result<(), InterpreterError> {
         let value = self.pop();
         let index = self.pop();
         let target = self.pop();
@@ -127,7 +149,7 @@ impl Vm {
         match target {
             Value::List(list) => list.borrow_mut().set(index, value)?,
             _ => {
-                return Err(VmError::InvalidIndexAssignment {
+                return Err(InterpreterError::InvalidIndexAssignment {
                     target_type: target.type_of(),
                     index: index.to_string(),
                 })
@@ -182,7 +204,10 @@ impl Vm {
         self.push(Value::String(value));
     }
 
-    fn instruction_push_variable(&mut self, name: &SharedImmutable<String>) -> Result<(), VmError> {
+    fn instruction_push_variable(
+        &mut self,
+        name: &SharedImmutable<String>,
+    ) -> Result<(), InterpreterError> {
         self.push(self.var(name)?);
         Ok(())
     }
@@ -191,7 +216,7 @@ impl Vm {
         self.push(Value::List(SharedMutable::new(List::new())));
     }
 
-    fn instruction_in_place_push(&mut self) -> Result<(), VmError> {
+    fn instruction_in_place_push(&mut self) -> Result<(), InterpreterError> {
         let value = self.pop();
         let target = self.tos();
         match target {
@@ -199,7 +224,7 @@ impl Vm {
                 list.borrow_mut().push(value);
                 Ok(())
             }
-            _ => Err(VmError::UndefinedBinaryOperation {
+            _ => Err(InterpreterError::UndefinedBinaryOperation {
                 operation: format!("{:?}", BytecodeInstruction::InPlacePush),
                 target_type: target.type_of(),
                 other_type: value.type_of(),
@@ -210,7 +235,7 @@ impl Vm {
     fn instruction_binary_operation(
         &mut self,
         instruction: &BytecodeInstruction,
-    ) -> Result<(), VmError> {
+    ) -> Result<(), InterpreterError> {
         let right = self.pop();
         let left = self.pop();
 
@@ -254,7 +279,7 @@ impl Vm {
             self.push(result);
             Ok(())
         } else {
-            Err(VmError::UndefinedBinaryOperation {
+            Err(InterpreterError::UndefinedBinaryOperation {
                 operation: format!("{:?}", instruction),
                 target_type: left.type_of(),
                 other_type: right.type_of(),
@@ -307,11 +332,11 @@ impl Vm {
         result.clone()
     }
 
-    fn var(&self, name: &SharedImmutable<String>) -> Result<Value, VmError> {
+    fn var(&self, name: &SharedImmutable<String>) -> Result<Value, InterpreterError> {
         let value = self.scopes.get(name);
         match value {
             Some(value) => Ok(value.clone()),
-            None => Err(VmError::UndefinedVariableAccess {
+            None => Err(InterpreterError::UndefinedVariableAccess {
                 name: (**name).clone(),
             }),
         }
@@ -351,7 +376,11 @@ impl ScopeManager {
         None
     }
 
-    pub fn assign(&mut self, name: SharedImmutable<String>, value: Value) -> Result<(), VmError> {
+    pub fn assign(
+        &mut self,
+        name: SharedImmutable<String>,
+        value: Value,
+    ) -> Result<(), InterpreterError> {
         for scope in self.scopes.iter_mut().rev() {
             if scope.contains_key(&name) {
                 scope.insert(name, value);
@@ -359,15 +388,15 @@ impl ScopeManager {
             }
         }
 
-        Err(VmError::UndefinedVariableAssignment {
+        Err(InterpreterError::UndefinedVariableAssignment {
             name: (*name).clone(),
         })
     }
 
-    pub fn declare(&mut self, name: SharedImmutable<String>) -> Result<(), VmError> {
+    pub fn declare(&mut self, name: SharedImmutable<String>) -> Result<(), InterpreterError> {
         let scope = self.scopes.last_mut().unwrap();
         if scope.insert(name.clone(), Value::Null).is_some() {
-            return Err(VmError::VariableRedeclaration {
+            return Err(InterpreterError::VariableRedeclaration {
                 name: (*name).clone(),
             });
         }

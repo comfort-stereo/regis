@@ -11,6 +11,3 @@ pest = "2.1.2"
 pest_derive = "2.1.0"
 lazy_static = "1.4.0"
 uuid = { version = "0.8", features = ["v4"] }
-
-[unstable]
-get_mut_unchecked = 'yes'

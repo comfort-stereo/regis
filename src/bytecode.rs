@@ -444,9 +444,9 @@ fn finalize(code: &mut BytecodeChunk) {
 }
 
 pub fn compile(node: &Box<AstNode>) -> BytecodeChunk {
-    let mut code = BytecodeChunk::new();
-    emit(&node, &mut code);
-    finalize(&mut code);
+    let mut main = BytecodeChunk::new();
+    emit(&node, &mut main);
+    finalize(&mut main);
 
-    code
+    main
 }
