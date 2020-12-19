@@ -6,6 +6,7 @@ extern crate pest_derive;
 extern crate uuid;
 
 mod bytecode;
+mod function;
 mod interpreter;
 mod interpreter_error;
 mod list;
@@ -24,7 +25,6 @@ fn main() {
         println!("ERROR: Provide a file to execute.");
         process::exit(1);
     });
-    println!("{:?}", path);
     let path = fs::canonicalize(path).unwrap_or_else(|_| {
         println!("ERROR: Path does not exist.");
         process::exit(2);
@@ -38,7 +38,7 @@ fn main() {
     match vm.run(&code) {
         Ok(()) => {}
         Err(error) => {
-            println!("ERROR: {}", error);
+            println!("{}", error);
         }
     }
 }

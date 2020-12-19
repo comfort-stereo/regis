@@ -1,3 +1,4 @@
+use crate::function::Function;
 use crate::list::List;
 use crate::shared::{SharedImmutable, SharedMutable};
 use crate::value_type::ValueType;
@@ -9,6 +10,7 @@ pub enum Value {
     Number(f64),
     String(SharedImmutable<String>),
     List(SharedMutable<List>),
+    Function(SharedImmutable<Function>),
 }
 
 impl Clone for Value {
@@ -19,6 +21,7 @@ impl Clone for Value {
             Value::Number(value) => Value::Number(*value),
             Value::String(value) => Value::String(value.clone()),
             Value::List(list) => Value::List(list.clone()),
+            Value::Function(function) => Value::Function(function.clone()),
         }
     }
 }
@@ -31,6 +34,7 @@ impl PartialEq for Value {
             (Value::Number(left), Value::Number(right)) => left == right,
             (Value::String(left), Value::String(right)) => *left == *right,
             (Value::List(left), Value::List(right)) => left == right,
+            (Value::Function(left), Value::Function(right)) => left == right,
             _ => false,
         }
     }
@@ -46,6 +50,7 @@ impl Value {
             Value::Number(..) => ValueType::Number,
             Value::String(..) => ValueType::String,
             Value::List(list) => list.borrow().type_of(),
+            Value::Function(function) => function.type_of(),
         }
     }
 
@@ -56,6 +61,7 @@ impl Value {
             Value::Number(value) => *value != 0.0,
             Value::String(..) => true,
             Value::List(list) => list.borrow().to_boolean(),
+            Value::Function(function) => function.to_boolean(),
         }
     }
 
@@ -66,6 +72,7 @@ impl Value {
             Value::Number(value) => value.to_string(),
             Value::String(value) => (**value).clone(),
             Value::List(list) => list.borrow().to_string(),
+            Value::Function(function) => function.to_string(),
         }
     }
 }

@@ -7,6 +7,7 @@ pub enum ValueType {
     Number,
     String,
     List,
+    Function,
 }
 
 impl Display for ValueType {
@@ -17,6 +18,7 @@ impl Display for ValueType {
             ValueType::Number => write!(formatter, "number"),
             ValueType::String => write!(formatter, "string"),
             ValueType::List => write!(formatter, "list"),
+            ValueType::Function => write!(formatter, "function"),
         }
     }
 }

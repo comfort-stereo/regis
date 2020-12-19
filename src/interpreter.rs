@@ -1,6 +1,5 @@
-use uuid::Uuid;
-
 use crate::bytecode::{compile, BytecodeChunk, BytecodeInstruction};
+use crate::function::Function;
 use crate::interpreter_error::InterpreterError;
 use crate::list::List;
 use crate::parser::parse;
@@ -13,40 +12,37 @@ static DEBUG: bool = false;
 
 pub struct Interpreter {
     stack: Vec<Value>,
-    scopes: ScopeManager,
+    frames: Vec<StackFrame>,
 }
 
 impl Interpreter {
     pub fn new() -> Self {
         Self {
             stack: Vec::new(),
-            scopes: ScopeManager::new(),
+            frames: vec![StackFrame::new(0)],
         }
     }
 
     pub fn run(&mut self, code: &str) -> Result<(), InterpreterError> {
         let ast = match parse(&code) {
             Ok(ast) => ast,
-            Err(..) => return Err(InterpreterError::ParseError),
+            Err(error) => {
+                return Err(InterpreterError::ParseError {
+                    message: format!("{}", error),
+                });
+            }
         };
 
-        let id = ast.id().clone();
-        let main = compile(&ast);
-        let mut chunks = HashMap::new();
-        chunks.insert(id, main);
-        self.run_chunk(&id, &chunks)
+        let bytecode = compile(&ast);
+        self.run_bytecode(&bytecode)
     }
 
-    fn run_chunk(
-        &mut self,
-        chunk_id: &Uuid,
-        chunks: &HashMap<Uuid, BytecodeChunk>,
-    ) -> Result<(), InterpreterError> {
-        let chunk = chunks.get(chunk_id).unwrap();
+    fn run_bytecode(&mut self, bytecode: &BytecodeChunk) -> Result<(), InterpreterError> {
         let mut line = 0;
+        let end = bytecode.instructions().len();
 
-        while line < chunk.instructions().len() {
-            let instruction = chunk.get(line);
+        while line < end {
+            let instruction = bytecode.get(line);
             let mut next = line + 1;
 
             if DEBUG {
@@ -80,6 +76,12 @@ impl Interpreter {
                 }
                 BytecodeInstruction::PushVariable(name) => self.instruction_push_variable(&name)?,
                 BytecodeInstruction::CreateList => self.instruction_create_list(),
+                BytecodeInstruction::CreateFunction(function) => {
+                    self.instruction_create_function(function.clone())
+                }
+                BytecodeInstruction::Call(argument_count) => {
+                    self.instruction_call(*argument_count)?
+                }
                 BytecodeInstruction::InPlacePush => self.instruction_in_place_push()?,
                 BytecodeInstruction::DeclareVariable(name) => {
                     self.instruction_declare_variable(name.clone())?
@@ -109,11 +111,33 @@ impl Interpreter {
         Ok(())
     }
 
+    fn push_frame(&mut self, frame: StackFrame) {
+        self.frames.push(frame);
+    }
+
+    fn pop_frame(&mut self) -> StackFrame {
+        let frame = self
+            .frames
+            .pop()
+            .expect("At least one stack frame must be left on the stack.");
+        // Remove all values allocated for the frame except the return value.
+        self.stack.resize(frame.position() + 1, Value::Null);
+        frame
+    }
+
+    fn frame(&self) -> &StackFrame {
+        self.frames.last().unwrap()
+    }
+
+    fn frame_mut(&mut self) -> &mut StackFrame {
+        self.frames.last_mut().unwrap()
+    }
+
     fn instruction_declare_variable(
         &mut self,
         name: SharedImmutable<String>,
     ) -> Result<(), InterpreterError> {
-        self.scopes.declare(name)
+        self.frame_mut().declare(name)
     }
 
     fn instruction_assign_variable(
@@ -121,7 +145,7 @@ impl Interpreter {
         name: SharedImmutable<String>,
     ) -> Result<(), InterpreterError> {
         let value = self.pop();
-        self.scopes.assign(name, value)
+        self.frame_mut().assign(name, value)
     }
 
     fn instruction_get_index(&mut self) -> Result<(), InterpreterError> {
@@ -164,11 +188,11 @@ impl Interpreter {
     }
 
     fn instruction_push_scope(&mut self) {
-        self.scopes.push();
+        self.frame_mut().push_scope();
     }
 
     fn instruction_pop_scope(&mut self) {
-        self.scopes.pop();
+        self.frame_mut().pop_scope();
     }
 
     fn instruction_duplicate(&mut self) {
@@ -214,6 +238,43 @@ impl Interpreter {
 
     fn instruction_create_list(&mut self) {
         self.push(Value::List(SharedMutable::new(List::new())));
+    }
+
+    fn instruction_create_function(&mut self, function: SharedImmutable<Function>) {
+        self.push(Value::Function(function));
+    }
+
+    fn instruction_call(&mut self, argument_count: usize) -> Result<(), InterpreterError> {
+        let target = self.pop();
+        let function = match target {
+            Value::Function(function) => function,
+            _ => {
+                return Err(InterpreterError::UndefinedUnaryOperation {
+                    operation: format!("{:?}", BytecodeInstruction::Call(argument_count)),
+                    target_type: target.type_of(),
+                })
+            }
+        };
+
+        let mut frame = StackFrame::new(self.stack.len() - argument_count);
+        if let Some(name) = function.name() {
+            frame.declare(name.clone())?;
+            frame.assign(name.clone(), Value::Function(function.clone()))?;
+        }
+
+        for parameter in function.parameters() {
+            frame.declare(parameter.clone())?
+        }
+
+        for parameter in function.parameters()[0..argument_count].iter().rev() {
+            frame.assign(parameter.clone(), self.pop())?
+        }
+
+        self.push_frame(frame);
+        self.run_bytecode(function.bytecode())?;
+        self.pop_frame();
+
+        Ok(())
     }
 
     fn instruction_in_place_push(&mut self) -> Result<(), InterpreterError> {
@@ -333,7 +394,7 @@ impl Interpreter {
     }
 
     fn var(&self, name: &SharedImmutable<String>) -> Result<Value, InterpreterError> {
-        let value = self.scopes.get(name);
+        let value = self.frame().get(name);
         match value {
             Some(value) => Ok(value.clone()),
             None => Err(InterpreterError::UndefinedVariableAccess {
@@ -343,24 +404,30 @@ impl Interpreter {
     }
 }
 
-struct ScopeManager {
+struct StackFrame {
+    position: usize,
     scopes: Vec<HashMap<SharedImmutable<String>, Value>>,
 }
 
-impl ScopeManager {
-    pub fn new() -> Self {
+impl StackFrame {
+    fn new(position: usize) -> Self {
         Self {
+            position,
             scopes: vec![HashMap::new()],
         }
     }
 
-    pub fn push(&mut self) {
+    pub fn position(&self) -> usize {
+        self.position
+    }
+
+    pub fn push_scope(&mut self) {
         self.scopes.push(HashMap::new());
     }
 
-    pub fn pop(&mut self) {
-        if self.scopes.len() < 2 {
-            panic!("At least one scope must be present to pop.");
+    pub fn pop_scope(&mut self) {
+        if self.scopes.len() == 1 {
+            panic!("Cannot pop, only one scope is present on the stack.");
         }
 
         self.scopes.pop();
@@ -404,3 +471,17 @@ impl ScopeManager {
         Ok(())
     }
 }
+
+// struct Variable {
+//     value: Value,
+// }
+
+// impl Variable {
+//     pub fn get(&self) -> &Value {
+//         &self.value
+//     }
+
+//     pub fn set(&mut self, value: Value) {
+//         self.value = value;
+//     }
+// }

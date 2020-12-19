@@ -3,7 +3,9 @@ use std::fmt::{Display, Formatter, Result};
 
 #[derive(Debug)]
 pub enum InterpreterError {
-    ParseError,
+    ParseError {
+        message: String,
+    },
     UndefinedVariableAccess {
         name: String,
     },
@@ -18,6 +20,10 @@ pub enum InterpreterError {
         target_type: ValueType,
         other_type: ValueType,
     },
+    UndefinedUnaryOperation {
+        operation: String,
+        target_type: ValueType,
+    },
     InvalidIndexAccess {
         target_type: ValueType,
         index: String,
@@ -31,8 +37,8 @@ pub enum InterpreterError {
 impl Display for InterpreterError {
     fn fmt(&self, formatter: &mut Formatter) -> Result {
         match self {
-            Self::ParseError => {
-                write!(formatter, "Failed to parse.")
+            Self::ParseError { message } => {
+                write!(formatter, "{}", message)
             }
             Self::UndefinedVariableAccess { name } => {
                 write!(
@@ -64,6 +70,16 @@ impl Display for InterpreterError {
                     formatter,
                     "Operation '{}' is not defined for types '{}' and '{}'",
                     operation, target_type, other_type,
+                )
+            }
+            Self::UndefinedUnaryOperation {
+                operation,
+                target_type,
+            } => {
+                write!(
+                    formatter,
+                    "Operation '{}' is not defined for type '{}'",
+                    operation, target_type
                 )
             }
             Self::InvalidIndexAccess { target_type, index } => {

@@ -6,6 +6,7 @@ ignored = _{ COMMENT | (" " | "\n" | "\t" | "\r") }
 eoi = _{ !ANY }
 br = _{ ("\n" | "\r")+ }
 
+keyword_fn = _{ "fn" }
 keyword_let = _{ "let" }
 keyword_echo = _{ "echo" }
 keyword_null = _{ "null" }
@@ -15,6 +16,7 @@ keyword_true = _{ "true" }
 keyword_false = _{ "false" }
 keyword_loop = _{ "loop" }
 keyword_while = _{ "while" }
+keyword_return = _{ "return" }
 keyword_break = _{ "break" }
 keyword_continue = _{ "continue" }
 
@@ -41,6 +43,9 @@ atom = _{
 
 wrapped = { "(" ~ br? ~ expression ~ br? ~ ")" }
 list = { "[" ~ br? ~ (expression ~ br? ~ "," ~ br?)* ~ expression? ~ br? ~ "]" }
+function = { keyword_fn ~ br? ~ identifier? ~ br? ~ "(" ~ br? ~ parameters ~ br? ~ ")" ~ block }
+parameters = { (identifier ~ br? ~ "," ~ br?)* ~ identifier? ~ br? }
+arguments = { (expression ~ br? ~ "," ~ br?)* ~ expression? ~ br? }
 
 operator_binary_mul = { "*" }
 operator_binary_div = { "/" }
@@ -96,43 +101,53 @@ binary_operations = {
     binary_operable_expression ~ br? ~ (binary_operator ~ br? ~ binary_operable_expression)+
 }
 
-index_expressions = {
-    (indexable_expression) ~ ("[" ~ br? ~ expression ~ br? ~ "]")+
+index = { "[" ~ br? ~ expression ~ br? ~ "]" }
+call = { "(" ~ br? ~ arguments ~ br? ~ ")" }
+
+chain = {
+    chainable_expression ~ (index | call)+
 }
 
 binary_operable_expression = _{
       wrapped
-    | index_expressions
-    | atom
+    | chain
+    | function
     | list
+    | atom
 }
 
-indexable_expression = _{
+chainable_expression = _{
       wrapped
-    | atom
+    | function
     | list
+    | atom
 }
 
 expression = _{
       wrapped
-    | index_expressions
     | binary_operations
-    | atom
+    | chain
+    | function
     | list
+    | atom
 }
 
 variable_declaration_statement = { keyword_let ~ br? ~ identifier ~ br? ~ "=" ~ br? ~ expression }
 variable_assignment_statement = { identifier ~ br? ~ assignment_operator ~ br? ~ expression }
-index_assignment_statement = { index_expressions ~ br? ~ assignment_operator ~ br? ~ expression }
+chain_assignment_statement = { expression ~ br? ~ assignment_operator ~ br? ~ expression }
+function_statement = { function }
+return_statement = { keyword_return ~ br? ~ expression }
 break_statement = { keyword_break }
 continue_statement = { keyword_continue }
 echo_statement = { keyword_echo ~ br? ~ expression }
 expression_statement = { expression }
 
 exec_statement = _{
-      variable_declaration_statement
+      function_statement
+    | variable_declaration_statement
     | variable_assignment_statement
-    | index_assignment_statement
+    | chain_assignment_statement
+    | return_statement
     | break_statement
     | continue_statement
     | echo_statement

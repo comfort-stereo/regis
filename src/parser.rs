@@ -30,10 +30,6 @@ impl AstNode {
         })
     }
 
-    pub fn id(&self) -> &Uuid {
-        &self.id
-    }
-
     pub fn variant(&self) -> &AstNodeVariant {
         &self.variant
     }
@@ -74,6 +70,14 @@ pub enum AstNodeVariant {
     List {
         values: Vec<Box<AstNode>>,
     },
+    Function {
+        name: Option<SharedImmutable<String>>,
+        parameters: Vec<SharedImmutable<String>>,
+        block: Box<AstNode>,
+    },
+    FunctionStatement {
+        function: Box<AstNode>,
+    },
     BinaryOperation {
         left: Box<AstNode>,
         operator: BinaryOperator,
@@ -82,6 +86,10 @@ pub enum AstNodeVariant {
     Index {
         target: Box<AstNode>,
         index: Box<AstNode>,
+    },
+    Call {
+        target: Box<AstNode>,
+        arguments: Vec<Box<AstNode>>,
     },
     Wrapped {
         value: Box<AstNode>,
@@ -101,6 +109,9 @@ pub enum AstNodeVariant {
         condition: Box<AstNode>,
         block: Box<AstNode>,
     },
+    ReturnStatement {
+        value: Option<Box<AstNode>>,
+    },
     BreakStatement,
     ContinueStatement,
     EchoStatement {
@@ -112,6 +123,7 @@ pub enum AstNodeVariant {
     Block {
         statements: Vec<Box<AstNode>>,
     },
+    Unknown,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -263,6 +275,44 @@ fn build(pair: Pair<Rule>) -> Box<AstNode> {
                     .collect::<Vec<_>>(),
             },
         ),
+        Rule::function => {
+            let mut inner = pair.into_inner();
+
+            let first = next(&mut inner);
+            let name = match first.as_rule() {
+                Rule::identifier => Some(SharedImmutable::new(content(&first))),
+                Rule::parameters => None,
+                _ => unreachable!(),
+            };
+
+            let parameters = match name {
+                Some(..) => next(&mut inner),
+                None => first,
+            }
+            .into_inner()
+            .map(|parameter| SharedImmutable::new(content(&parameter)))
+            .collect::<Vec<_>>();
+
+            let block = build(next(&mut inner));
+
+            AstNode::create(
+                &span,
+                AstNodeVariant::Function {
+                    name,
+                    parameters,
+                    block,
+                },
+            )
+        }
+        Rule::function_statement => {
+            let mut inner = pair.into_inner();
+            AstNode::create(
+                &span,
+                AstNodeVariant::FunctionStatement {
+                    function: build(next(&mut inner)),
+                },
+            )
+        }
         Rule::variable_declaration_statement => {
             let mut inner = pair.into_inner();
             AstNode::create(
@@ -284,16 +334,21 @@ fn build(pair: Pair<Rule>) -> Box<AstNode> {
                 },
             )
         }
-        Rule::index_assignment_statement => {
+        Rule::chain_assignment_statement => {
             let mut inner = pair.into_inner();
-            AstNode::create(
-                &span,
-                AstNodeVariant::IndexAssignmentStatement {
-                    index: build(next(&mut inner)),
-                    operator: AssignmentOperator::from_rule(&next(&mut inner).as_rule()),
-                    value: build(next(&mut inner)),
-                },
-            )
+            let target = build(next(&mut inner));
+
+            match target.variant() {
+                AstNodeVariant::Index { .. } => AstNode::create(
+                    &span,
+                    AstNodeVariant::IndexAssignmentStatement {
+                        index: target,
+                        operator: AssignmentOperator::from_rule(&next(&mut inner).as_rule()),
+                        value: build(next(&mut inner)),
+                    },
+                ),
+                _ => AstNode::create(&span, AstNodeVariant::Unknown),
+            }
         }
         Rule::loop_statement => {
             let mut inner = pair.into_inner();
@@ -311,6 +366,15 @@ fn build(pair: Pair<Rule>) -> Box<AstNode> {
                 AstNodeVariant::WhileStatement {
                     condition: build(next(&mut inner)),
                     block: build(next(&mut inner)),
+                },
+            )
+        }
+        Rule::return_statement => {
+            let mut inner = pair.into_inner();
+            AstNode::create(
+                &span,
+                AstNodeVariant::ReturnStatement {
+                    value: inner.next().map(|value| build(value)),
                 },
             )
         }
@@ -390,23 +454,30 @@ fn build(pair: Pair<Rule>) -> Box<AstNode> {
                 },
             )
         }
-        Rule::index_expressions => {
+        Rule::chain => {
             let mut inner = pair.into_inner();
             let target = build(next(&mut inner));
-            let indexes = inner.map(|child| build(child)).collect::<Vec<_>>();
 
-            let mut current = target;
-            for index in indexes {
-                current = AstNode::create(
-                    &span,
+            inner.fold(target, |target, current| match current.as_rule() {
+                Rule::index => AstNode::create(
+                    &current.as_span(),
                     AstNodeVariant::Index {
-                        target: current,
-                        index,
+                        target,
+                        index: build(next(&mut current.into_inner())),
                     },
-                )
-            }
-
-            current
+                ),
+                Rule::call => AstNode::create(
+                    &current.as_span(),
+                    AstNodeVariant::Call {
+                        target,
+                        arguments: next(&mut current.into_inner())
+                            .into_inner()
+                            .map(|argument| build(argument))
+                            .collect::<Vec<_>>(),
+                    },
+                ),
+                _ => unreachable!(),
+            })
         }
         _ => {
             panic!("Unrecognized rule for build: {:?}", pair.as_rule());

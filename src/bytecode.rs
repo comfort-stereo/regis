@@ -1,3 +1,4 @@
+use crate::function::Function;
 use crate::parser::{AssignmentOperator, AstNode, AstNodeVariant, BinaryOperator};
 use crate::shared::SharedImmutable;
 use std::collections::{BTreeMap, HashSet};
@@ -29,6 +30,8 @@ pub enum BytecodeInstruction {
     PushNumber(f64),
     PushString(SharedImmutable<String>),
     CreateList,
+    CreateFunction(SharedImmutable<Function>),
+    Call(usize),
     InPlacePush,
     PushVariable(SharedImmutable<String>),
     DeclareVariable(SharedImmutable<String>),
@@ -43,6 +46,7 @@ pub enum BytecodeInstruction {
 pub enum BytecodeMarker {
     LoopStart,
     LoopEnd,
+    Return,
     Break,
     Continue,
 }
@@ -158,6 +162,36 @@ pub fn emit(node: &Box<AstNode>, code: &mut BytecodeChunk) {
             for value in values {
                 emit(value, code);
                 code.add(BytecodeInstruction::InPlacePush);
+            }
+        }
+        AstNodeVariant::Function {
+            name,
+            parameters,
+            block,
+        } => {
+            let mut function_code = BytecodeChunk::new();
+            emit(&block, &mut function_code);
+            let function = SharedImmutable::new(Function::new(
+                name.clone(),
+                parameters.clone(),
+                SharedImmutable::new(function_code),
+            ));
+
+            code.add(BytecodeInstruction::CreateFunction(function));
+        }
+        AstNodeVariant::FunctionStatement { function } => {
+            let name = match function.variant() {
+                AstNodeVariant::Function { name, .. } => name,
+                _ => unreachable!(),
+            };
+
+            if let Some(name) = name {
+                code.add(BytecodeInstruction::DeclareVariable(name.clone()));
+                emit(&function, code);
+                code.add(BytecodeInstruction::AssignVariable(name.clone()));
+            } else {
+                emit(&function, code);
+                code.add(BytecodeInstruction::Pop);
             }
         }
         AstNodeVariant::VariableDeclarationStatement { name, value } => {
@@ -315,6 +349,16 @@ pub fn emit(node: &Box<AstNode>, code: &mut BytecodeChunk) {
             }
             code.add(BytecodeInstruction::PopScope);
         }
+        AstNodeVariant::ReturnStatement { value } => {
+            if let Some(value) = value {
+                emit(value, code);
+            } else {
+                code.add(BytecodeInstruction::PushNull);
+            }
+
+            code.blank();
+            code.mark(code.last(), BytecodeMarker::Return);
+        }
         AstNodeVariant::BreakStatement => {
             code.blank();
             code.mark(code.last(), BytecodeMarker::Break);
@@ -379,6 +423,14 @@ pub fn emit(node: &Box<AstNode>, code: &mut BytecodeChunk) {
             emit(index, code);
             code.add(BytecodeInstruction::GetIndex);
         }
+        AstNodeVariant::Call { target, arguments } => {
+            for argument in arguments {
+                emit(argument, code);
+            }
+            emit(target, code);
+            code.add(BytecodeInstruction::Call(arguments.len()));
+        }
+        AstNodeVariant::Unknown => {}
     }
 }
 
