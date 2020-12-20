@@ -58,6 +58,11 @@ pub enum AstNodeVariant {
         operator: AssignmentOperator,
         value: Box<AstNode>,
     },
+    DotAssignmentStatement {
+        dot: Box<AstNode>,
+        operator: AssignmentOperator,
+        value: Box<AstNode>,
+    },
     Null,
     Boolean {
         value: bool,
@@ -101,6 +106,10 @@ pub enum AstNodeVariant {
     Index {
         target: Box<AstNode>,
         index: Box<AstNode>,
+    },
+    Dot {
+        target: Box<AstNode>,
+        property: SharedImmutable<String>,
     },
     Call {
         target: Box<AstNode>,
@@ -385,6 +394,14 @@ fn build(pair: Pair<Rule>) -> Box<AstNode> {
                         value: build(next(&mut inner)),
                     },
                 ),
+                AstNodeVariant::Dot { .. } => AstNode::create(
+                    &span,
+                    AstNodeVariant::DotAssignmentStatement {
+                        dot: target,
+                        operator: AssignmentOperator::from_rule(&next(&mut inner).as_rule()),
+                        value: build(next(&mut inner)),
+                    },
+                ),
                 _ => AstNode::create(&span, AstNodeVariant::Unknown),
             }
         }
@@ -511,6 +528,13 @@ fn build(pair: Pair<Rule>) -> Box<AstNode> {
                     AstNodeVariant::Index {
                         target,
                         index: build(next(&mut current.into_inner())),
+                    },
+                ),
+                Rule::dot => AstNode::create(
+                    &current.as_span(),
+                    AstNodeVariant::Dot {
+                        target,
+                        property: SharedImmutable::new(content(&next(&mut current.into_inner()))),
                     },
                 ),
                 Rule::call => AstNode::create(

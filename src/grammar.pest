@@ -108,10 +108,11 @@ binary_operations = {
 }
 
 index = { "[" ~ br? ~ expression ~ br? ~ "]" }
+dot = { "." ~ br? ~ identifier }
 call = { "(" ~ br? ~ arguments ~ br? ~ ")" }
 
 chain = {
-    chainable_expression ~ (index | call)+
+    chainable_expression ~ (index | dot | call)+
 }
 
 binary_operable_expression = _{

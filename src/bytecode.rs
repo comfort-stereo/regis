@@ -282,37 +282,29 @@ pub fn emit(node: &Box<AstNode>, code: &mut BytecodeChunk) {
                 code.add(BytecodeInstruction::GetIndex);
             }
 
-            match operator {
-                AssignmentOperator::Direct => {
-                    emit(value, code);
-                }
-                AssignmentOperator::Mul => {
-                    emit(value, code);
-                    code.add(BytecodeInstruction::BinaryMul);
-                }
-                AssignmentOperator::Div => {
-                    emit(value, code);
-                    code.add(BytecodeInstruction::BinaryDiv);
-                }
-                AssignmentOperator::Add => {
-                    emit(value, code);
-                    code.add(BytecodeInstruction::BinaryAdd);
-                }
-                AssignmentOperator::Sub => {
-                    emit(value, code);
-                    code.add(BytecodeInstruction::BinarySub);
-                }
-                AssignmentOperator::And => {
-                    emit_and_operation(value, code);
-                }
-                AssignmentOperator::Or => {
-                    emit_or_operation(value, code);
-                }
-                AssignmentOperator::Ncl => {
-                    emit_ncl_operation(value, code);
-                }
+            emit_set_index_value(operator, value, code);
+            code.add(BytecodeInstruction::SetIndex);
+        }
+        AstNodeVariant::DotAssignmentStatement {
+            dot,
+            operator,
+            value,
+        } => {
+            let (target, property) = match dot.variant() {
+                AstNodeVariant::Dot { target, property } => (target, property),
+                _ => unreachable!(),
+            };
+
+            emit(target, code);
+            code.add(BytecodeInstruction::PushString(property.clone()));
+
+            if *operator != AssignmentOperator::Direct {
+                emit(target, code);
+                code.add(BytecodeInstruction::PushString(property.clone()));
+                code.add(BytecodeInstruction::GetIndex);
             }
 
+            emit_set_index_value(operator, value, code);
             code.add(BytecodeInstruction::SetIndex);
         }
         AstNodeVariant::IfStatement {
@@ -450,6 +442,11 @@ pub fn emit(node: &Box<AstNode>, code: &mut BytecodeChunk) {
             emit(index, code);
             code.add(BytecodeInstruction::GetIndex);
         }
+        AstNodeVariant::Dot { target, property } => {
+            emit(target, code);
+            code.add(BytecodeInstruction::PushString(property.clone()));
+            code.add(BytecodeInstruction::GetIndex);
+        }
         AstNodeVariant::Call { target, arguments } => {
             for argument in arguments.iter().rev() {
                 emit(argument, code);
@@ -490,6 +487,43 @@ fn emit_or_operation(value: &Box<AstNode>, code: &mut BytecodeChunk) {
     code.add(BytecodeInstruction::Pop);
     emit(value, code);
     code.set(jump_end_if_true, BytecodeInstruction::JumpIf(code.end()));
+}
+
+fn emit_set_index_value(
+    operator: &AssignmentOperator,
+    value: &Box<AstNode>,
+    code: &mut BytecodeChunk,
+) {
+    match operator {
+        AssignmentOperator::Direct => {
+            emit(value, code);
+        }
+        AssignmentOperator::Mul => {
+            emit(value, code);
+            code.add(BytecodeInstruction::BinaryMul);
+        }
+        AssignmentOperator::Div => {
+            emit(value, code);
+            code.add(BytecodeInstruction::BinaryDiv);
+        }
+        AssignmentOperator::Add => {
+            emit(value, code);
+            code.add(BytecodeInstruction::BinaryAdd);
+        }
+        AssignmentOperator::Sub => {
+            emit(value, code);
+            code.add(BytecodeInstruction::BinarySub);
+        }
+        AssignmentOperator::And => {
+            emit_and_operation(value, code);
+        }
+        AssignmentOperator::Or => {
+            emit_or_operation(value, code);
+        }
+        AssignmentOperator::Ncl => {
+            emit_ncl_operation(value, code);
+        }
+    }
 }
 
 fn finalize(code: &mut BytecodeChunk) {
