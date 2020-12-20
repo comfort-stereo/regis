@@ -73,9 +73,13 @@ pub enum AstNodeVariant {
         values: Vec<Box<AstNode>>,
     },
     Function {
-        name: Option<SharedImmutable<String>>,
+        name: SharedImmutable<String>,
         parameters: Vec<SharedImmutable<String>>,
         block: Box<AstNode>,
+    },
+    Lambda {
+        parameters: Vec<SharedImmutable<String>>,
+        body: Box<AstNode>,
     },
     FunctionStatement {
         function: Box<AstNode>,
@@ -282,30 +286,28 @@ fn build(pair: Pair<Rule>) -> Box<AstNode> {
         ),
         Rule::function => {
             let mut inner = pair.into_inner();
-
-            let first = next(&mut inner);
-            let name = match first.as_rule() {
-                Rule::identifier => Some(SharedImmutable::new(content(&first))),
-                Rule::parameters => None,
-                _ => unreachable!(),
-            };
-
-            let parameters = match name {
-                Some(..) => next(&mut inner),
-                None => first,
-            }
-            .into_inner()
-            .map(|parameter| SharedImmutable::new(content(&parameter)))
-            .collect::<Vec<_>>();
-
-            let block = build(next(&mut inner));
-
             AstNode::create(
                 &span,
                 AstNodeVariant::Function {
-                    name,
-                    parameters,
-                    block,
+                    name: SharedImmutable::new(content(&next(&mut inner))),
+                    parameters: next(&mut inner)
+                        .into_inner()
+                        .map(|parameter| SharedImmutable::new(content(&parameter)))
+                        .collect::<Vec<_>>(),
+                    block: build(next(&mut inner)),
+                },
+            )
+        }
+        Rule::lambda => {
+            let mut inner = pair.into_inner();
+            AstNode::create(
+                &span,
+                AstNodeVariant::Lambda {
+                    parameters: next(&mut inner)
+                        .into_inner()
+                        .map(|parameter| SharedImmutable::new(content(&parameter)))
+                        .collect::<Vec<_>>(),
+                    body: build(next(&mut inner)),
                 },
             )
         }

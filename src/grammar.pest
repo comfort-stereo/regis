@@ -43,7 +43,8 @@ atom = _{
 
 wrapped = { "(" ~ br? ~ expression ~ br? ~ ")" }
 list = { "[" ~ br? ~ (expression ~ br? ~ "," ~ br?)* ~ expression? ~ br? ~ "]" }
-function = { keyword_fn ~ br? ~ identifier? ~ br? ~ "(" ~ br? ~ parameters ~ br? ~ ")" ~ function_block }
+function = { keyword_fn ~ br? ~ identifier ~ br? ~ "(" ~ br? ~ parameters ~ br? ~ ")" ~ function_block }
+lambda = { "|" ~ br? ~ parameters ~ br? ~ "|" ~ (function_block | expression) }
 parameters = { (identifier ~ br? ~ "," ~ br?)* ~ identifier? ~ br? }
 arguments = { (expression ~ br? ~ "," ~ br?)* ~ expression? ~ br? }
 
@@ -112,6 +113,7 @@ binary_operable_expression = _{
       wrapped
     | chain
     | function
+    | lambda
     | list
     | atom
 }
@@ -119,6 +121,7 @@ binary_operable_expression = _{
 chainable_expression = _{
       wrapped
     | function
+    | lambda
     | list
     | atom
 }
@@ -128,6 +131,7 @@ expression = _{
     | binary_operations
     | chain
     | function
+    | lambda
     | list
     | atom
 }

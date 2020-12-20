@@ -172,7 +172,18 @@ pub fn emit(node: &Box<AstNode>, code: &mut BytecodeChunk) {
             let mut function_code = BytecodeChunk::new();
             emit(&block, &mut function_code);
             let function = SharedImmutable::new(Function::new(
-                name.clone(),
+                Some(name.clone()),
+                parameters.clone(),
+                SharedImmutable::new(function_code),
+            ));
+
+            code.add(BytecodeInstruction::CreateFunction(function));
+        }
+        AstNodeVariant::Lambda { parameters, body } => {
+            let mut function_code = BytecodeChunk::new();
+            emit(&body, &mut function_code);
+            let function = SharedImmutable::new(Function::new(
+                None,
                 parameters.clone(),
                 SharedImmutable::new(function_code),
             ));
@@ -185,14 +196,9 @@ pub fn emit(node: &Box<AstNode>, code: &mut BytecodeChunk) {
                 _ => unreachable!(),
             };
 
-            if let Some(name) = name {
-                code.add(BytecodeInstruction::DeclareVariable(name.clone()));
-                emit(&function, code);
-                code.add(BytecodeInstruction::AssignVariable(name.clone()));
-            } else {
-                emit(&function, code);
-                code.add(BytecodeInstruction::Pop);
-            }
+            code.add(BytecodeInstruction::DeclareVariable(name.clone()));
+            emit(&function, code);
+            code.add(BytecodeInstruction::AssignVariable(name.clone()));
         }
         AstNodeVariant::VariableDeclarationStatement { name, value } => {
             code.add(BytecodeInstruction::DeclareVariable(name.clone()));

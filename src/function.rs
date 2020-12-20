@@ -40,7 +40,7 @@ impl Function {
 
     pub fn to_string(&self) -> String {
         match self.name() {
-            Some(name) => format!("function:{}", *name),
+            Some(name) => format!("<function:{}>", *name),
             None => "<function>".into(),
         }
     }
