@@ -39,6 +39,7 @@ pub enum BytecodeInstruction {
     JumpIf(usize),
     JumpUnless(usize),
     Jump(usize),
+    Return,
     Echo,
 }
 
@@ -46,7 +47,6 @@ pub enum BytecodeInstruction {
 pub enum BytecodeMarker {
     LoopStart,
     LoopEnd,
-    Return,
     Break,
     Continue,
 }
@@ -349,6 +349,11 @@ pub fn emit(node: &Box<AstNode>, code: &mut BytecodeChunk) {
             }
             code.add(BytecodeInstruction::PopScope);
         }
+        AstNodeVariant::FunctionBlock { statements } => {
+            for statement in statements {
+                emit(statement, code);
+            }
+        }
         AstNodeVariant::ReturnStatement { value } => {
             if let Some(value) = value {
                 emit(value, code);
@@ -356,8 +361,7 @@ pub fn emit(node: &Box<AstNode>, code: &mut BytecodeChunk) {
                 code.add(BytecodeInstruction::PushNull);
             }
 
-            code.blank();
-            code.mark(code.last(), BytecodeMarker::Return);
+            code.add(BytecodeInstruction::Return);
         }
         AstNodeVariant::BreakStatement => {
             code.blank();

@@ -12,6 +12,8 @@ use uuid::Uuid;
 #[grammar = "grammar.pest"]
 struct RegisParser;
 
+pub type ParseRule = Rule;
+
 #[derive(Debug)]
 pub struct AstNode {
     id: Uuid,
@@ -121,6 +123,9 @@ pub enum AstNodeVariant {
         expression: Box<AstNode>,
     },
     Block {
+        statements: Vec<Box<AstNode>>,
+    },
+    FunctionBlock {
         statements: Vec<Box<AstNode>>,
     },
     Unknown,
@@ -421,6 +426,15 @@ fn build(pair: Pair<Rule>) -> Box<AstNode> {
         Rule::block => AstNode::create(
             &span,
             AstNodeVariant::Block {
+                statements: pair
+                    .into_inner()
+                    .map(|child| build(child))
+                    .collect::<Vec<_>>(),
+            },
+        ),
+        Rule::function_block => AstNode::create(
+            &span,
+            AstNodeVariant::FunctionBlock {
                 statements: pair
                     .into_inner()
                     .map(|child| build(child))

@@ -43,7 +43,7 @@ atom = _{
 
 wrapped = { "(" ~ br? ~ expression ~ br? ~ ")" }
 list = { "[" ~ br? ~ (expression ~ br? ~ "," ~ br?)* ~ expression? ~ br? ~ "]" }
-function = { keyword_fn ~ br? ~ identifier? ~ br? ~ "(" ~ br? ~ parameters ~ br? ~ ")" ~ block }
+function = { keyword_fn ~ br? ~ identifier? ~ br? ~ "(" ~ br? ~ parameters ~ br? ~ ")" ~ function_block }
 parameters = { (identifier ~ br? ~ "," ~ br?)* ~ identifier? ~ br? }
 arguments = { (expression ~ br? ~ "," ~ br?)* ~ expression? ~ br? }
 
@@ -132,29 +132,35 @@ expression = _{
     | atom
 }
 
-variable_declaration_statement = { keyword_let ~ br? ~ identifier ~ br? ~ "=" ~ br? ~ expression }
-variable_assignment_statement = { identifier ~ br? ~ assignment_operator ~ br? ~ expression }
-chain_assignment_statement = { expression ~ br? ~ assignment_operator ~ br? ~ expression }
-function_statement = { function }
-return_statement = { keyword_return ~ br? ~ expression }
+return_statement = {
+      keyword_return ~ br? ~ expression
+    | keyword_return
+}
+
 break_statement = { keyword_break }
 continue_statement = { keyword_continue }
 echo_statement = { keyword_echo ~ br? ~ expression }
+function_statement = { function }
+variable_declaration_statement = { keyword_let ~ br? ~ identifier ~ br? ~ "=" ~ br? ~ expression }
+variable_assignment_statement = { identifier ~ br? ~ assignment_operator ~ br? ~ expression }
+chain_assignment_statement = { expression ~ br? ~ assignment_operator ~ br? ~ expression }
 expression_statement = { expression }
 
 exec_statement = _{
-      function_statement
-    | variable_declaration_statement
-    | variable_assignment_statement
-    | chain_assignment_statement
-    | return_statement
+      return_statement
     | break_statement
     | continue_statement
     | echo_statement
+    | function_statement
+    | variable_declaration_statement
+    | variable_assignment_statement
+    | chain_assignment_statement
     | expression_statement
 }
 
-block = { "{" ~ br? ~ statement* ~ exec_statement? ~ br? ~ "}" }
+block = { "{" ~ br? ~ statement* ~ br? ~ "}" }
+function_block = { "{" ~ br? ~ statement* ~ br? ~ "}" }
+
 if_statement = { keyword_if ~ br? ~ expression ~ br? ~ block ~ br? ~ else_statement? }
 else_statement = { keyword_else ~ br? ~ (block | if_statement) }
 loop_statement = { keyword_loop ~ br? ~ block }
@@ -172,8 +178,8 @@ terminator = _{ ";" | br | eoi }
 statement = _{
     br?
     ~ (
-        (exec_statement ~ terminator)
-        | block_statement
+        block_statement
+        | (exec_statement ~ terminator)
     )
     ~ br?
 }

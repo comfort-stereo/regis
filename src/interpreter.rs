@@ -27,9 +27,7 @@ impl Interpreter {
         let ast = match parse(&code) {
             Ok(ast) => ast,
             Err(error) => {
-                return Err(InterpreterError::ParseError {
-                    message: format!("{}", error),
-                });
+                return Err(InterpreterError::ParseError { error });
             }
         };
 
@@ -102,6 +100,7 @@ impl Interpreter {
                     }
                 }
                 BytecodeInstruction::Jump(destination) => next = *destination,
+                BytecodeInstruction::Return => break,
                 BytecodeInstruction::Echo => self.instruction_echo(),
             }
 

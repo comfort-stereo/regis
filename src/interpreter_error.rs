@@ -1,10 +1,12 @@
+use crate::parser::ParseRule;
 use crate::value_type::ValueType;
+use pest::error::Error as ParseError;
 use std::fmt::{Display, Formatter, Result};
 
 #[derive(Debug)]
 pub enum InterpreterError {
     ParseError {
-        message: String,
+        error: ParseError<ParseRule>,
     },
     UndefinedVariableAccess {
         name: String,
@@ -37,8 +39,8 @@ pub enum InterpreterError {
 impl Display for InterpreterError {
     fn fmt(&self, formatter: &mut Formatter) -> Result {
         match self {
-            Self::ParseError { message } => {
-                write!(formatter, "{}", message)
+            Self::ParseError { error } => {
+                write!(formatter, "{}", error)
             }
             Self::UndefinedVariableAccess { name } => {
                 write!(
