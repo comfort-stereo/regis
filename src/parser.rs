@@ -1,12 +1,14 @@
-use crate::shared::SharedImmutable;
-use crate::unescape::unescape;
 use lazy_static;
+
 use pest::error::Error;
 use pest::iterators::{Pair, Pairs};
 use pest::prec_climber::{Assoc, Operator, PrecClimber};
 use pest::{Parser, Span};
 use std::iter::Iterator;
 use uuid::Uuid;
+
+use crate::shared::SharedImmutable;
+use crate::unescape::unescape;
 
 #[derive(Parser)]
 #[grammar = "grammar.pest"]
@@ -71,6 +73,13 @@ pub enum AstNodeVariant {
     },
     List {
         values: Vec<Box<AstNode>>,
+    },
+    Dict {
+        pairs: Vec<Box<AstNode>>,
+    },
+    Pair {
+        key: Box<AstNode>,
+        value: Box<AstNode>,
     },
     Function {
         name: SharedImmutable<String>,
@@ -287,6 +296,25 @@ fn build(pair: Pair<Rule>) -> Box<AstNode> {
                     .collect::<Vec<_>>(),
             },
         ),
+        Rule::dict => AstNode::create(
+            &span,
+            AstNodeVariant::Dict {
+                pairs: pair
+                    .into_inner()
+                    .map(|child| build(child))
+                    .collect::<Vec<_>>(),
+            },
+        ),
+        Rule::pair => {
+            let mut inner = pair.into_inner();
+            AstNode::create(
+                &span,
+                AstNodeVariant::Pair {
+                    key: build(next(&mut inner)),
+                    value: build(next(&mut inner)),
+                },
+            )
+        }
         Rule::function => {
             let mut inner = pair.into_inner();
             AstNode::create(

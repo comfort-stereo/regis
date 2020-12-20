@@ -1,7 +1,8 @@
-use crate::parser::ParseRule;
-use crate::value_type::ValueType;
 use pest::error::Error as ParseError;
 use std::fmt::{Display, Formatter, Result};
+
+use crate::parser::ParseRule;
+use crate::value_type::ValueType;
 
 #[derive(Debug)]
 pub enum InterpreterError {

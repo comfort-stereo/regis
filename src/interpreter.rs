@@ -1,12 +1,13 @@
+use std::collections::HashMap;
+
 use crate::bytecode::{compile, BytecodeChunk, BytecodeInstruction};
+use crate::dict::Dict;
 use crate::function::Function;
 use crate::interpreter_error::InterpreterError;
 use crate::list::List;
 use crate::parser::parse;
 use crate::shared::{SharedImmutable, SharedMutable};
 use crate::value::Value;
-
-use std::collections::HashMap;
 
 static DEBUG: bool = false;
 
@@ -74,14 +75,14 @@ impl Interpreter {
                     self.instruction_push_string(value.clone())
                 }
                 BytecodeInstruction::PushVariable(name) => self.instruction_push_variable(&name)?,
-                BytecodeInstruction::CreateList => self.instruction_create_list(),
+                BytecodeInstruction::CreateList(size) => self.instruction_create_list(*size),
+                BytecodeInstruction::CreateDict(size) => self.instruction_create_dict(*size),
                 BytecodeInstruction::CreateFunction(function) => {
                     self.instruction_create_function(function.clone())
                 }
                 BytecodeInstruction::Call(argument_count) => {
                     self.instruction_call(*argument_count)?
                 }
-                BytecodeInstruction::InPlacePush => self.instruction_in_place_push()?,
                 BytecodeInstruction::DeclareVariable(name) => {
                     self.instruction_declare_variable(name.clone())?
                 }
@@ -154,6 +155,7 @@ impl Interpreter {
 
         self.push(match target {
             Value::List(list) => list.borrow().get(index)?,
+            Value::Dict(dict) => dict.borrow().get(index),
             _ => {
                 return Err(InterpreterError::InvalidIndexAccess {
                     target_type: target.type_of(),
@@ -172,6 +174,7 @@ impl Interpreter {
 
         match target {
             Value::List(list) => list.borrow_mut().set(index, value)?,
+            Value::Dict(dict) => dict.borrow_mut().set(index, value),
             _ => {
                 return Err(InterpreterError::InvalidIndexAssignment {
                     target_type: target.type_of(),
@@ -236,8 +239,26 @@ impl Interpreter {
         Ok(())
     }
 
-    fn instruction_create_list(&mut self) {
-        self.push(Value::List(SharedMutable::new(List::new())));
+    fn instruction_create_list(&mut self, size: usize) {
+        let mut list = List::new();
+        list.reserve(size);
+        for _ in 0..size {
+            list.push(self.pop());
+        }
+
+        self.push(Value::List(SharedMutable::new(list)));
+    }
+
+    fn instruction_create_dict(&mut self, size: usize) {
+        let mut dict = Dict::new();
+        dict.reserve(size);
+        for _ in 0..size {
+            let key = self.pop();
+            let value = self.pop();
+            dict.set(value.clone(), key.clone());
+        }
+
+        self.push(Value::Dict(SharedMutable::new(dict)));
     }
 
     fn instruction_create_function(&mut self, function: SharedImmutable<Function>) {
@@ -266,7 +287,7 @@ impl Interpreter {
             frame.declare(parameter.clone())?
         }
 
-        for parameter in function.parameters()[0..argument_count].iter().rev() {
+        for parameter in function.parameters()[0..argument_count].iter() {
             frame.assign(parameter.clone(), self.pop())?
         }
 
@@ -275,22 +296,6 @@ impl Interpreter {
         self.pop_frame();
 
         Ok(())
-    }
-
-    fn instruction_in_place_push(&mut self) -> Result<(), InterpreterError> {
-        let value = self.pop();
-        let target = self.tos();
-        match target {
-            Value::List(list) => {
-                list.borrow_mut().push(value);
-                Ok(())
-            }
-            _ => Err(InterpreterError::UndefinedBinaryOperation {
-                operation: format!("{:?}", BytecodeInstruction::InPlacePush),
-                target_type: target.type_of(),
-                other_type: value.type_of(),
-            }),
-        }
     }
 
     fn instruction_binary_operation(
@@ -321,6 +326,10 @@ impl Interpreter {
                     left.borrow_mut().push(right);
                     Some(Value::List(left))
                 }
+                _ => None,
+            },
+            (Value::Dict(left), Value::Dict(right)) => match instruction {
+                BytecodeInstruction::BinaryAdd => Some(Value::Dict(left.borrow().concat(right))),
                 _ => None,
             },
             (Value::String(left), right) => match instruction {

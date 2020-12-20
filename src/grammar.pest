@@ -43,6 +43,9 @@ atom = _{
 
 wrapped = { "(" ~ br? ~ expression ~ br? ~ ")" }
 list = { "[" ~ br? ~ (expression ~ br? ~ "," ~ br?)* ~ expression? ~ br? ~ "]" }
+dict = { "{" ~ br? ~ (pair ~ br? ~ "," ~ br?)* ~ pair? ~ br? ~ "}" }
+pair = { key ~ br? ~ ":" ~ br? ~ expression }
+key = _{ identifier | string | ("[" ~ br? ~ expression ~ br? ~ "]") }
 function = { keyword_fn ~ br? ~ identifier ~ br? ~ "(" ~ br? ~ parameters ~ br? ~ ")" ~ function_block }
 lambda = { "|" ~ br? ~ parameters ~ br? ~ "|" ~ (function_block | expression) }
 parameters = { (identifier ~ br? ~ "," ~ br?)* ~ identifier? ~ br? }
@@ -117,6 +120,7 @@ binary_operable_expression = _{
     | function
     | lambda
     | list
+    | dict
     | atom
 }
 
@@ -125,6 +129,7 @@ chainable_expression = _{
     | function
     | lambda
     | list
+    | dict
     | atom
 }
 
@@ -135,6 +140,7 @@ expression = _{
     | function
     | lambda
     | list
+    | dict
     | atom
 }
 

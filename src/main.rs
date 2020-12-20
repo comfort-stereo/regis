@@ -3,13 +3,16 @@ extern crate lazy_static;
 extern crate pest;
 #[macro_use]
 extern crate pest_derive;
+extern crate indexmap;
 extern crate uuid;
 
 mod bytecode;
+mod dict;
 mod function;
 mod interpreter;
 mod interpreter_error;
 mod list;
+mod oid;
 mod parser;
 mod shared;
 mod unescape;

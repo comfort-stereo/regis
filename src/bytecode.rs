@@ -1,9 +1,10 @@
-use crate::function::Function;
-use crate::parser::{AssignmentOperator, AstNode, AstNodeVariant, BinaryOperator};
-use crate::shared::SharedImmutable;
 use std::collections::{BTreeMap, HashSet};
 use std::fmt::{Debug, Formatter, Result};
 use std::hash::Hash;
+
+use crate::function::Function;
+use crate::parser::{AssignmentOperator, AstNode, AstNodeVariant, BinaryOperator};
+use crate::shared::SharedImmutable;
 
 #[derive(Debug, Clone)]
 pub enum BytecodeInstruction {
@@ -30,10 +31,10 @@ pub enum BytecodeInstruction {
     PushBoolean(bool),
     PushNumber(f64),
     PushString(SharedImmutable<String>),
-    CreateList,
+    CreateList(usize),
+    CreateDict(usize),
     CreateFunction(SharedImmutable<Function>),
     Call(usize),
-    InPlacePush,
     PushVariable(SharedImmutable<String>),
     DeclareVariable(SharedImmutable<String>),
     AssignVariable(SharedImmutable<String>),
@@ -159,11 +160,25 @@ pub fn emit(node: &Box<AstNode>, code: &mut BytecodeChunk) {
             code.add(BytecodeInstruction::PushVariable(name.clone()));
         }
         AstNodeVariant::List { values } => {
-            code.add(BytecodeInstruction::CreateList);
-            for value in values {
+            for value in values.iter().rev() {
                 emit(value, code);
-                code.add(BytecodeInstruction::InPlacePush);
             }
+            code.add(BytecodeInstruction::CreateList(values.len()));
+        }
+        AstNodeVariant::Dict { pairs } => {
+            for pair in pairs.iter().rev() {
+                emit(pair, code);
+            }
+            code.add(BytecodeInstruction::CreateDict(pairs.len()));
+        }
+        AstNodeVariant::Pair { key, value } => {
+            match key.variant() {
+                AstNodeVariant::Identifier { name } => {
+                    code.add(BytecodeInstruction::PushString(name.clone()));
+                }
+                _ => emit(key, code),
+            };
+            emit(value, code);
         }
         AstNodeVariant::Function {
             name,
@@ -436,7 +451,7 @@ pub fn emit(node: &Box<AstNode>, code: &mut BytecodeChunk) {
             code.add(BytecodeInstruction::GetIndex);
         }
         AstNodeVariant::Call { target, arguments } => {
-            for argument in arguments {
+            for argument in arguments.iter().rev() {
                 emit(argument, code);
             }
             emit(target, code);
