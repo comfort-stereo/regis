@@ -23,6 +23,7 @@ pub enum BytecodeInstruction {
     BinaryLte,
     BinaryEq,
     BinaryNeq,
+    BinaryPush,
     GetIndex,
     SetIndex,
     PushNull,
@@ -404,7 +405,8 @@ pub fn emit(node: &Box<AstNode>, code: &mut BytecodeChunk) {
                 BinaryOperator::Lte => Some(BytecodeInstruction::BinaryLte),
                 BinaryOperator::Eq => Some(BytecodeInstruction::BinaryEq),
                 BinaryOperator::Neq => Some(BytecodeInstruction::BinaryNeq),
-                BinaryOperator::And | BinaryOperator::Or | BinaryOperator::Ncl => None,
+                BinaryOperator::Push => Some(BytecodeInstruction::BinaryPush),
+                BinaryOperator::Ncl | BinaryOperator::And | BinaryOperator::Or => None,
             } {
                 emit(left, code);
                 emit(right, code);
@@ -413,6 +415,10 @@ pub fn emit(node: &Box<AstNode>, code: &mut BytecodeChunk) {
             }
 
             match operator {
+                BinaryOperator::Ncl => {
+                    emit(left, code);
+                    emit_ncl_operation(right, code);
+                }
                 BinaryOperator::And => {
                     emit(left, code);
                     emit_and_operation(right, code);
@@ -420,10 +426,6 @@ pub fn emit(node: &Box<AstNode>, code: &mut BytecodeChunk) {
                 BinaryOperator::Or => {
                     emit(left, code);
                     emit_or_operation(right, code);
-                }
-                BinaryOperator::Ncl => {
-                    emit(left, code);
-                    emit_ncl_operation(right, code);
                 }
                 _ => unreachable!(),
             }
@@ -444,6 +446,18 @@ pub fn emit(node: &Box<AstNode>, code: &mut BytecodeChunk) {
     }
 }
 
+fn emit_ncl_operation(value: &Box<AstNode>, code: &mut BytecodeChunk) {
+    code.add(BytecodeInstruction::Duplicate);
+    code.add(BytecodeInstruction::IsNull);
+    let jump_end_if_not_null = code.blank();
+    code.add(BytecodeInstruction::Pop);
+    emit(value, code);
+    code.set(
+        jump_end_if_not_null,
+        BytecodeInstruction::JumpUnless(code.end()),
+    );
+}
+
 fn emit_and_operation(value: &Box<AstNode>, code: &mut BytecodeChunk) {
     code.add(BytecodeInstruction::Duplicate);
     let jump_end_if_false = code.blank();
@@ -461,18 +475,6 @@ fn emit_or_operation(value: &Box<AstNode>, code: &mut BytecodeChunk) {
     code.add(BytecodeInstruction::Pop);
     emit(value, code);
     code.set(jump_end_if_true, BytecodeInstruction::JumpIf(code.end()));
-}
-
-fn emit_ncl_operation(value: &Box<AstNode>, code: &mut BytecodeChunk) {
-    code.add(BytecodeInstruction::Duplicate);
-    code.add(BytecodeInstruction::IsNull);
-    let jump_end_if_not_null = code.blank();
-    code.add(BytecodeInstruction::Pop);
-    emit(value, code);
-    code.set(
-        jump_end_if_not_null,
-        BytecodeInstruction::JumpUnless(code.end()),
-    );
 }
 
 fn finalize(code: &mut BytecodeChunk) {

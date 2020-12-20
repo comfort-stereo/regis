@@ -137,6 +137,7 @@ pub enum AstNodeVariant {
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum BinaryOperator {
+    Ncl,
     Mul,
     Div,
     Add,
@@ -149,12 +150,13 @@ pub enum BinaryOperator {
     Neq,
     And,
     Or,
-    Ncl,
+    Push,
 }
 
 impl BinaryOperator {
     fn from_rule(rule: &Rule) -> Self {
         match rule {
+            Rule::operator_binary_ncl => BinaryOperator::Ncl,
             Rule::operator_binary_mul => BinaryOperator::Mul,
             Rule::operator_binary_div => BinaryOperator::Div,
             Rule::operator_binary_add => BinaryOperator::Add,
@@ -167,7 +169,7 @@ impl BinaryOperator {
             Rule::operator_binary_neq => BinaryOperator::Neq,
             Rule::operator_binary_and => BinaryOperator::And,
             Rule::operator_binary_or => BinaryOperator::Or,
-            Rule::operator_binary_ncl => BinaryOperator::Ncl,
+            Rule::operator_binary_push => BinaryOperator::Push,
             _ => unreachable!(),
         }
     }
@@ -189,13 +191,13 @@ impl AssignmentOperator {
     fn from_rule(rule: &Rule) -> Self {
         match rule {
             Rule::operator_assign_direct => AssignmentOperator::Direct,
+            Rule::operator_assign_ncl => AssignmentOperator::Ncl,
             Rule::operator_assign_mul => AssignmentOperator::Mul,
             Rule::operator_assign_div => AssignmentOperator::Div,
             Rule::operator_assign_add => AssignmentOperator::Add,
             Rule::operator_assign_sub => AssignmentOperator::Sub,
             Rule::operator_assign_and => AssignmentOperator::And,
             Rule::operator_assign_or => AssignmentOperator::Or,
-            Rule::operator_assign_ncl => AssignmentOperator::Ncl,
             _ => unreachable!(),
         }
     }
@@ -222,16 +224,17 @@ lazy_static! {
         use Rule::*;
         let op = |rule: Rule| Operator::new(rule, Left);
         PrecClimber::new(vec![
-            op(operator_binary_ncl),
+            op(operator_binary_push),
             op(operator_binary_or),
             op(operator_binary_and),
+            op(operator_binary_eq) | op(operator_binary_neq),
             op(operator_binary_gt)
                 | op(operator_binary_lt)
                 | op(operator_binary_gte)
                 | op(operator_binary_lte),
             op(operator_binary_add) | op(operator_binary_sub),
             op(operator_binary_mul) | op(operator_binary_div),
-            op(operator_binary_eq) | op(operator_binary_neq),
+            op(operator_binary_ncl),
         ])
     };
 }

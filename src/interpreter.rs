@@ -63,7 +63,8 @@ impl Interpreter {
                 | BytecodeInstruction::BinaryGte
                 | BytecodeInstruction::BinaryLte
                 | BytecodeInstruction::BinaryEq
-                | BytecodeInstruction::BinaryNeq => {
+                | BytecodeInstruction::BinaryNeq
+                | BytecodeInstruction::BinaryPush => {
                     self.instruction_binary_operation(&instruction)?
                 }
                 BytecodeInstruction::PushNull => self.instruction_push_null(),
@@ -313,6 +314,13 @@ impl Interpreter {
             },
             (Value::List(left), Value::List(right)) => match instruction {
                 BytecodeInstruction::BinaryAdd => Some(Value::List(left.borrow().concat(right))),
+                _ => None,
+            },
+            (Value::List(left), right) => match instruction {
+                BytecodeInstruction::BinaryPush => {
+                    left.borrow_mut().push(right);
+                    Some(Value::List(left))
+                }
                 _ => None,
             },
             (Value::String(left), right) => match instruction {
