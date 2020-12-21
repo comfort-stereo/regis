@@ -45,9 +45,10 @@ wrapped = { "(" ~ br? ~ expression ~ br? ~ ")" }
 list = { "[" ~ br? ~ (expression ~ br? ~ "," ~ br?)* ~ expression? ~ br? ~ "]" }
 dict = { "{" ~ br? ~ (pair ~ br? ~ "," ~ br?)* ~ pair? ~ br? ~ "}" }
 pair = { key ~ br? ~ ":" ~ br? ~ expression }
-key = _{ identifier | string | ("[" ~ br? ~ expression ~ br? ~ "]") }
-function = { keyword_fn ~ br? ~ identifier ~ br? ~ "(" ~ br? ~ parameters ~ br? ~ ")" ~ function_block }
-lambda = { "|" ~ br? ~ parameters ~ br? ~ "|" ~ (function_block | expression) }
+key = _{ identifier | string | key_expression }
+key_expression = { "[" ~ br? ~ expression ~ br? ~ "]" }
+function = { keyword_fn ~ br? ~ identifier ~ br? ~ "(" ~ br? ~ parameters ~ br? ~ ")" ~ block }
+lambda = { "|" ~ br? ~ parameters ~ br? ~ "|" ~ (block | expression) }
 parameters = { (identifier ~ br? ~ "," ~ br?)* ~ identifier? ~ br? }
 arguments = { (expression ~ br? ~ "," ~ br?)* ~ expression? ~ br? }
 
@@ -156,7 +157,7 @@ echo_statement = { keyword_echo ~ br? ~ expression }
 function_statement = { function }
 variable_declaration_statement = { keyword_let ~ br? ~ identifier ~ br? ~ "=" ~ br? ~ expression }
 variable_assignment_statement = { identifier ~ br? ~ assignment_operator ~ br? ~ expression }
-chain_assignment_statement = { expression ~ br? ~ assignment_operator ~ br? ~ expression }
+chain_assignment_statement = { chain ~ br? ~ assignment_operator ~ br? ~ expression }
 expression_statement = { expression }
 
 exec_statement = _{
@@ -172,7 +173,6 @@ exec_statement = _{
 }
 
 block = { "{" ~ br? ~ statement* ~ br? ~ "}" }
-function_block = { "{" ~ br? ~ statement* ~ br? ~ "}" }
 
 if_statement = { keyword_if ~ br? ~ expression ~ br? ~ block ~ br? ~ else_statement? }
 else_statement = { keyword_else ~ br? ~ (block | if_statement) }

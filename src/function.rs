@@ -1,6 +1,6 @@
 use std::hash::{Hash, Hasher};
 
-use crate::bytecode::BytecodeChunk;
+use crate::compiler::bytecode::Bytecode;
 use crate::oid::oid;
 use crate::shared::SharedImmutable;
 use crate::value_type::ValueType;
@@ -10,7 +10,7 @@ pub struct Function {
     id: usize,
     name: Option<SharedImmutable<String>>,
     parameters: Vec<SharedImmutable<String>>,
-    bytecode: SharedImmutable<BytecodeChunk>,
+    bytecode: SharedImmutable<Bytecode>,
 }
 
 impl PartialEq for Function {
@@ -31,7 +31,7 @@ impl Function {
     pub fn new(
         name: Option<SharedImmutable<String>>,
         parameters: Vec<SharedImmutable<String>>,
-        bytecode: SharedImmutable<BytecodeChunk>,
+        bytecode: SharedImmutable<Bytecode>,
     ) -> Self {
         Self {
             id: oid(),
@@ -64,7 +64,7 @@ impl Function {
         &self.parameters
     }
 
-    pub fn bytecode(&self) -> &SharedImmutable<BytecodeChunk> {
+    pub fn bytecode(&self) -> &SharedImmutable<Bytecode> {
         &self.bytecode
     }
 }

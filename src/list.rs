@@ -96,9 +96,9 @@ impl List {
         self.inner.reserve(capacity);
     }
 
-    pub fn concat(&self, other: SharedMutable<Self>) -> SharedMutable<Self> {
+    pub fn concat(&self, other: &SharedMutable<Self>) -> SharedMutable<Self> {
         let mut result = Self::new();
-        result.reserve(self.count() + other.borrow().count());
+        result.reserve(self.len() + other.borrow().len());
 
         for value in &self.inner {
             result.push(value.clone())
@@ -107,14 +107,14 @@ impl List {
             result.push(value.clone())
         }
 
-        SharedMutable::new(result)
+        result.into()
     }
 
     pub fn push(&mut self, value: Value) {
         self.inner.push(value)
     }
 
-    pub fn count(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.inner.len()
     }
 }

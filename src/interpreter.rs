@@ -1,16 +1,18 @@
 use std::collections::HashMap;
 
-use crate::bytecode::{compile, BytecodeChunk, BytecodeInstruction};
+use crate::ast::parser::parse_module;
+use crate::compiler::bytecode::{Bytecode, Instruction};
+use crate::compiler::compile_module;
 use crate::dict::Dict;
 use crate::function::Function;
 use crate::interpreter_error::InterpreterError;
 use crate::list::List;
-use crate::parser::parse;
-use crate::shared::{SharedImmutable, SharedMutable};
+use crate::shared::SharedImmutable;
 use crate::value::Value;
 
 static DEBUG: bool = false;
 
+#[derive(Debug)]
 pub struct Interpreter {
     stack: Vec<Value>,
     frames: Vec<StackFrame>,
@@ -24,21 +26,21 @@ impl Interpreter {
         }
     }
 
-    pub fn run(&mut self, code: &str) -> Result<(), InterpreterError> {
-        let ast = match parse(&code) {
+    pub fn run_module(&mut self, code: &str) -> Result<(), InterpreterError> {
+        let ast = match parse_module(&code) {
             Ok(ast) => ast,
             Err(error) => {
                 return Err(InterpreterError::ParseError { error });
             }
         };
 
-        let bytecode = compile(&ast);
+        let bytecode = compile_module(&ast);
         self.run_bytecode(&bytecode)
     }
 
-    fn run_bytecode(&mut self, bytecode: &BytecodeChunk) -> Result<(), InterpreterError> {
+    fn run_bytecode(&mut self, bytecode: &Bytecode) -> Result<(), InterpreterError> {
         let mut line = 0;
-        let end = bytecode.instructions().len();
+        let end = bytecode.len();
 
         while line < end {
             let instruction = bytecode.get(line);
@@ -49,61 +51,56 @@ impl Interpreter {
             }
 
             match instruction {
-                BytecodeInstruction::Blank => {}
-                BytecodeInstruction::Pop => self.instruction_pop(),
-                BytecodeInstruction::PushScope => self.instruction_push_scope(),
-                BytecodeInstruction::PopScope => self.instruction_pop_scope(),
-                BytecodeInstruction::Duplicate => self.instruction_duplicate(),
-                BytecodeInstruction::IsNull => self.instruction_is_null(),
-                BytecodeInstruction::BinaryAdd
-                | BytecodeInstruction::BinaryDiv
-                | BytecodeInstruction::BinaryMul
-                | BytecodeInstruction::BinarySub
-                | BytecodeInstruction::BinaryGt
-                | BytecodeInstruction::BinaryLt
-                | BytecodeInstruction::BinaryGte
-                | BytecodeInstruction::BinaryLte
-                | BytecodeInstruction::BinaryEq
-                | BytecodeInstruction::BinaryNeq
-                | BytecodeInstruction::BinaryPush => {
-                    self.instruction_binary_operation(&instruction)?
-                }
-                BytecodeInstruction::PushNull => self.instruction_push_null(),
-                BytecodeInstruction::PushBoolean(value) => self.instruction_push_boolean(*value),
-                BytecodeInstruction::PushNumber(value) => self.instruction_push_number(*value),
-                BytecodeInstruction::PushString(value) => {
-                    self.instruction_push_string(value.clone())
-                }
-                BytecodeInstruction::PushVariable(name) => self.instruction_push_variable(&name)?,
-                BytecodeInstruction::CreateList(size) => self.instruction_create_list(*size),
-                BytecodeInstruction::CreateDict(size) => self.instruction_create_dict(*size),
-                BytecodeInstruction::CreateFunction(function) => {
+                Instruction::Blank => {}
+                Instruction::Pop => self.instruction_pop(),
+                Instruction::PushScope => self.instruction_push_scope(),
+                Instruction::PopScope => self.instruction_pop_scope(),
+                Instruction::Duplicate => self.instruction_duplicate(),
+                Instruction::DuplicateTop(count) => self.instruction_duplicate_top(*count),
+                Instruction::IsNull => self.instruction_is_null(),
+                Instruction::BinaryAdd
+                | Instruction::BinaryDiv
+                | Instruction::BinaryMul
+                | Instruction::BinarySub
+                | Instruction::BinaryGt
+                | Instruction::BinaryLt
+                | Instruction::BinaryGte
+                | Instruction::BinaryLte
+                | Instruction::BinaryEq
+                | Instruction::BinaryNeq
+                | Instruction::BinaryPush => self.instruction_binary_operation(&instruction)?,
+                Instruction::PushNull => self.instruction_push_null(),
+                Instruction::PushBoolean(value) => self.instruction_push_boolean(*value),
+                Instruction::PushNumber(value) => self.instruction_push_number(*value),
+                Instruction::PushString(value) => self.instruction_push_string(value.clone()),
+                Instruction::PushVariable(name) => self.instruction_push_variable(&name)?,
+                Instruction::CreateList(size) => self.instruction_create_list(*size),
+                Instruction::CreateDict(size) => self.instruction_create_dict(*size),
+                Instruction::CreateFunction(function) => {
                     self.instruction_create_function(function.clone())
                 }
-                BytecodeInstruction::Call(argument_count) => {
-                    self.instruction_call(*argument_count)?
-                }
-                BytecodeInstruction::DeclareVariable(name) => {
+                Instruction::Call(argument_count) => self.instruction_call(*argument_count)?,
+                Instruction::DeclareVariable(name) => {
                     self.instruction_declare_variable(name.clone())?
                 }
-                BytecodeInstruction::AssignVariable(name) => {
+                Instruction::AssignVariable(name) => {
                     self.instruction_assign_variable(name.clone())?
                 }
-                BytecodeInstruction::GetIndex => self.instruction_get_index()?,
-                BytecodeInstruction::SetIndex => self.instruction_set_index()?,
-                BytecodeInstruction::JumpIf(destination) => {
+                Instruction::GetIndex => self.instruction_get_index()?,
+                Instruction::SetIndex => self.instruction_set_index()?,
+                Instruction::JumpIf(destination) => {
                     if self.pop().to_boolean() {
                         next = *destination;
                     }
                 }
-                BytecodeInstruction::JumpUnless(destination) => {
+                Instruction::JumpUnless(destination) => {
                     if !self.pop().to_boolean() {
                         next = *destination;
                     }
                 }
-                BytecodeInstruction::Jump(destination) => next = *destination,
-                BytecodeInstruction::Return => break,
-                BytecodeInstruction::Echo => self.instruction_echo(),
+                Instruction::Jump(destination) => next = *destination,
+                Instruction::Return => break,
+                Instruction::Echo => self.instruction_echo(),
             }
 
             line = next;
@@ -203,6 +200,12 @@ impl Interpreter {
         self.push(value);
     }
 
+    fn instruction_duplicate_top(&mut self, count: usize) {
+        for i in self.stack.len() - count..self.stack.len() {
+            self.push(self.stack[i].clone());
+        }
+    }
+
     fn instruction_echo(&mut self) {
         println!("{}", self.pop().to_string());
     }
@@ -246,7 +249,7 @@ impl Interpreter {
             list.push(self.pop());
         }
 
-        self.push(Value::List(SharedMutable::new(list)));
+        self.push(Value::List(list.into()));
     }
 
     fn instruction_create_dict(&mut self, size: usize) {
@@ -258,7 +261,7 @@ impl Interpreter {
             dict.set(value.clone(), key.clone());
         }
 
-        self.push(Value::Dict(SharedMutable::new(dict)));
+        self.push(Value::Dict(dict.into()));
     }
 
     fn instruction_create_function(&mut self, function: SharedImmutable<Function>) {
@@ -271,7 +274,7 @@ impl Interpreter {
             Value::Function(function) => function,
             _ => {
                 return Err(InterpreterError::UndefinedUnaryOperation {
-                    operation: format!("{:?}", BytecodeInstruction::Call(argument_count)),
+                    operation: format!("{:?}", Instruction::Call(argument_count)),
                     target_type: target.type_of(),
                 })
             }
@@ -300,55 +303,55 @@ impl Interpreter {
 
     fn instruction_binary_operation(
         &mut self,
-        instruction: &BytecodeInstruction,
+        instruction: &Instruction,
     ) -> Result<(), InterpreterError> {
         let right = self.pop();
         let left = self.pop();
 
         let result = match (left.clone(), right.clone()) {
             (Value::Number(left), Value::Number(right)) => match instruction {
-                BytecodeInstruction::BinaryAdd => Some(Value::Number(left + right)),
-                BytecodeInstruction::BinaryDiv => Some(Value::Number(left / right)),
-                BytecodeInstruction::BinaryMul => Some(Value::Number(left * right)),
-                BytecodeInstruction::BinarySub => Some(Value::Number(left - right)),
-                BytecodeInstruction::BinaryGt => Some(Value::Boolean(left > right)),
-                BytecodeInstruction::BinaryLt => Some(Value::Boolean(left < right)),
-                BytecodeInstruction::BinaryGte => Some(Value::Boolean(left >= right)),
-                BytecodeInstruction::BinaryLte => Some(Value::Boolean(left <= right)),
+                Instruction::BinaryAdd => Some(Value::Number(left + right)),
+                Instruction::BinaryDiv => Some(Value::Number(left / right)),
+                Instruction::BinaryMul => Some(Value::Number(left * right)),
+                Instruction::BinarySub => Some(Value::Number(left - right)),
+                Instruction::BinaryGt => Some(Value::Boolean(left > right)),
+                Instruction::BinaryLt => Some(Value::Boolean(left < right)),
+                Instruction::BinaryGte => Some(Value::Boolean(left >= right)),
+                Instruction::BinaryLte => Some(Value::Boolean(left <= right)),
                 _ => None,
             },
             (Value::List(left), Value::List(right)) => match instruction {
-                BytecodeInstruction::BinaryAdd => Some(Value::List(left.borrow().concat(right))),
+                Instruction::BinaryAdd => Some(Value::List(left.borrow().concat(&right))),
                 _ => None,
             },
             (Value::List(left), right) => match instruction {
-                BytecodeInstruction::BinaryPush => {
+                Instruction::BinaryPush => {
                     left.borrow_mut().push(right);
                     Some(Value::List(left))
                 }
                 _ => None,
             },
             (Value::Dict(left), Value::Dict(right)) => match instruction {
-                BytecodeInstruction::BinaryAdd => Some(Value::Dict(left.borrow().concat(right))),
+                Instruction::BinaryAdd => Some(Value::Dict(left.borrow().concat(&right))),
                 _ => None,
             },
             (Value::String(left), right) => match instruction {
-                BytecodeInstruction::BinaryAdd => Some(Value::String(SharedImmutable::new(
-                    format!("{}{}", *left, right.to_string()),
-                ))),
+                Instruction::BinaryAdd => Some(Value::String(
+                    format!("{}{}", *left, right.to_string()).into(),
+                )),
                 _ => None,
             },
             (left, Value::String(right)) => match instruction {
-                BytecodeInstruction::BinaryAdd => Some(Value::String(SharedImmutable::new(
-                    format!("{}{}", left.to_string(), *right),
-                ))),
+                Instruction::BinaryAdd => Some(Value::String(
+                    format!("{}{}", left.to_string(), *right).into(),
+                )),
                 _ => None,
             },
             _ => None,
         }
         .or_else(|| match instruction {
-            BytecodeInstruction::BinaryEq => Some(Value::Boolean(left == right)),
-            BytecodeInstruction::BinaryNeq => Some(Value::Boolean(left != right)),
+            Instruction::BinaryEq => Some(Value::Boolean(left == right)),
+            Instruction::BinaryNeq => Some(Value::Boolean(left != right)),
             _ => None,
         });
 
@@ -420,6 +423,7 @@ impl Interpreter {
     }
 }
 
+#[derive(Debug)]
 struct StackFrame {
     position: usize,
     scopes: Vec<HashMap<SharedImmutable<String>, Value>>,
@@ -487,17 +491,3 @@ impl StackFrame {
         Ok(())
     }
 }
-
-// struct Variable {
-//     value: Value,
-// }
-
-// impl Variable {
-//     pub fn get(&self) -> &Value {
-//         &self.value
-//     }
-
-//     pub fn set(&mut self, value: Value) {
-//         self.value = value;
-//     }
-// }

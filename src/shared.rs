@@ -8,6 +8,12 @@ pub struct SharedMutable<T> {
     inner: Rc<RefCell<T>>,
 }
 
+impl<T> From<T> for SharedMutable<T> {
+    fn from(inner: T) -> Self {
+        Self::new(inner)
+    }
+}
+
 impl<T> Clone for SharedMutable<T> {
     fn clone(&self) -> Self {
         Self {
@@ -55,6 +61,12 @@ impl<T> SharedMutable<T> {
 #[derive(Debug)]
 pub struct SharedImmutable<T> {
     inner: Rc<T>,
+}
+
+impl<T> From<T> for SharedImmutable<T> {
+    fn from(inner: T) -> Self {
+        Self::new(inner)
+    }
 }
 
 impl<T> Deref for SharedImmutable<T> {

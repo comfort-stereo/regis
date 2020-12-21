@@ -6,14 +6,14 @@ extern crate pest_derive;
 extern crate indexmap;
 extern crate uuid;
 
-mod bytecode;
+mod ast;
+mod compiler;
 mod dict;
 mod function;
 mod interpreter;
 mod interpreter_error;
 mod list;
 mod oid;
-mod parser;
 mod shared;
 mod unescape;
 mod value;
@@ -38,7 +38,7 @@ fn main() {
     });
 
     let mut vm = Interpreter::new();
-    match vm.run(&code) {
+    match vm.run_module(&code) {
         Ok(()) => {}
         Err(error) => {
             println!("{}", error);

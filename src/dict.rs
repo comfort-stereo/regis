@@ -66,9 +66,9 @@ impl Dict {
         self.inner.reserve(capacity);
     }
 
-    pub fn concat(&self, other: SharedMutable<Self>) -> SharedMutable<Self> {
+    pub fn concat(&self, other: &SharedMutable<Self>) -> SharedMutable<Self> {
         let mut result = Self::new();
-        result.reserve(self.count().max(other.borrow().count()));
+        result.reserve(self.len().max(other.borrow().len()));
 
         for (key, value) in &self.inner {
             result.set(key.clone(), value.clone());
@@ -77,10 +77,10 @@ impl Dict {
             result.set(key.clone(), value.clone());
         }
 
-        SharedMutable::new(result)
+        result.into()
     }
 
-    pub fn count(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.inner.len()
     }
 }
