@@ -1,7 +1,7 @@
 use crate::ast::expression::{
     AstBinaryOperation, AstBoolean, AstCall, AstChainVariant, AstDict, AstDot,
     AstExpressionVariant, AstFunction, AstIdentifier, AstIndex, AstKeyExpression, AstKeyVariant,
-    AstLambda, AstLambdaBodyVariant, AstList, AstNull, AstNumber, AstString, AstWrapped,
+    AstLambda, AstLambdaBodyVariant, AstList, AstNull, AstNumber, AstPair, AstString, AstWrapped,
 };
 use crate::ast::operator::BinaryOperator;
 use crate::function::Function;
@@ -32,34 +32,34 @@ impl Builder {
         self.add(Instruction::PushNull);
     }
 
-    pub fn emit_boolean(&mut self, boolean: &AstBoolean) {
-        self.add(Instruction::PushBoolean(boolean.value));
+    pub fn emit_boolean(&mut self, AstBoolean { value, .. }: &AstBoolean) {
+        self.add(Instruction::PushBoolean(*value));
     }
 
-    pub fn emit_number(&mut self, number: &AstNumber) {
-        self.add(Instruction::PushNumber(number.value));
+    pub fn emit_number(&mut self, AstNumber { value, .. }: &AstNumber) {
+        self.add(Instruction::PushNumber(*value));
     }
 
-    pub fn emit_string(&mut self, string: &AstString) {
-        self.add(Instruction::PushString(string.value.clone()));
+    pub fn emit_string(&mut self, AstString { value, .. }: &AstString) {
+        self.add(Instruction::PushString(value.clone()));
     }
 
-    pub fn emit_identifier(&mut self, identifier: &AstIdentifier) {
-        self.add(Instruction::PushVariable(identifier.name.clone()));
+    pub fn emit_identifier(&mut self, AstIdentifier { name, .. }: &AstIdentifier) {
+        self.add(Instruction::PushVariable(name.clone()));
     }
 
-    pub fn emit_list(&mut self, list: &AstList) {
-        for value in list.values.iter().rev() {
+    pub fn emit_list(&mut self, AstList { values, .. }: &AstList) {
+        for value in values.iter().rev() {
             self.emit_expression(value);
         }
 
-        self.add(Instruction::CreateList(list.values.len()));
+        self.add(Instruction::CreateList(values.len()));
     }
 
-    pub fn emit_dict(&mut self, dict: &AstDict) {
-        for pair in dict.pairs.iter().rev() {
+    pub fn emit_dict(&mut self, AstDict { pairs, .. }: &AstDict) {
+        for AstPair { key, value, .. } in pairs.iter().rev() {
             use AstKeyVariant::*;
-            match &pair.key {
+            match key {
                 Identifier(AstIdentifier { name, .. }) => {
                     self.add(Instruction::PushString(name.clone()))
                 }
@@ -67,20 +67,27 @@ impl Builder {
                 KeyExpression(AstKeyExpression { value, .. }) => self.emit_expression(value),
             }
 
-            self.emit_expression(&pair.value);
+            self.emit_expression(value);
         }
 
-        self.add(Instruction::CreateDict(dict.pairs.len()));
+        self.add(Instruction::CreateDict(pairs.len()));
     }
 
-    pub fn emit_function(&mut self, function: &AstFunction) {
+    pub fn emit_function(
+        &mut self,
+        AstFunction {
+            name,
+            parameters,
+            block,
+            ..
+        }: &AstFunction,
+    ) {
         let mut compiler = Builder::new();
-        compiler.emit_unscoped_block(&function.block);
+        compiler.emit_unscoped_block(&block);
         let bytecode = compiler.build();
         let instance = Function::new(
-            Some(function.name.name.clone()),
-            function
-                .parameters
+            Some(name.name.clone()),
+            parameters
                 .iter()
                 .map(|parameter| parameter.name.clone())
                 .collect(),
@@ -90,11 +97,16 @@ impl Builder {
         self.add(Instruction::CreateFunction(instance.into()));
     }
 
-    pub fn emit_lambda(&mut self, lambda: &AstLambda) {
+    pub fn emit_lambda(
+        &mut self,
+        AstLambda {
+            body, parameters, ..
+        }: &AstLambda,
+    ) {
         let mut compiler = Builder::new();
         {
             use AstLambdaBodyVariant::*;
-            match &lambda.body {
+            match body {
                 Block(block) => compiler.emit_unscoped_block(&block),
                 Expression(expression) => compiler.emit_expression(&expression),
             }
@@ -103,8 +115,7 @@ impl Builder {
         let bytecode = compiler.build();
         let instance = Function::new(
             None,
-            lambda
-                .parameters
+            parameters
                 .iter()
                 .map(|parameter| parameter.name.clone())
                 .collect(),
@@ -114,8 +125,8 @@ impl Builder {
         self.add(Instruction::CreateFunction(instance.into()));
     }
 
-    pub fn emit_wrapped(&mut self, wrapped: &AstWrapped) {
-        self.emit_expression(&wrapped.value)
+    pub fn emit_wrapped(&mut self, AstWrapped { value, .. }: &AstWrapped) {
+        self.emit_expression(value)
     }
 
     pub fn emit_chain(&mut self, chain: &AstChainVariant) {
@@ -128,31 +139,49 @@ impl Builder {
         }
     }
 
-    pub fn emit_index(&mut self, index: &AstIndex) {
-        self.emit_chain(&index.target);
-        self.emit_expression(&index.index);
+    pub fn emit_index(&mut self, AstIndex { target, index, .. }: &AstIndex) {
+        self.emit_chain(target);
+        self.emit_expression(index);
         self.add(Instruction::GetIndex);
     }
 
-    pub fn emit_dot(&mut self, dot: &AstDot) {
-        self.emit_chain(&dot.target);
-        self.add(Instruction::PushString(dot.property.name.clone()));
+    pub fn emit_dot(
+        &mut self,
+        AstDot {
+            target, property, ..
+        }: &AstDot,
+    ) {
+        self.emit_chain(target);
+        self.add(Instruction::PushString(property.name.clone()));
         self.add(Instruction::GetIndex);
     }
 
-    pub fn emit_call(&mut self, call: &AstCall) {
-        for argument in call.arguments.iter().rev() {
+    pub fn emit_call(
+        &mut self,
+        AstCall {
+            target, arguments, ..
+        }: &AstCall,
+    ) {
+        for argument in arguments.iter().rev() {
             self.emit_expression(argument);
         }
 
-        self.emit_chain(&call.target);
-        self.add(Instruction::Call(call.arguments.len()));
+        self.emit_chain(target);
+        self.add(Instruction::Call(arguments.len()));
     }
 
-    pub fn emit_binary_operation(&mut self, binary_operation: &AstBinaryOperation) {
+    pub fn emit_binary_operation(
+        &mut self,
+        AstBinaryOperation {
+            left,
+            operator,
+            right,
+            ..
+        }: &AstBinaryOperation,
+    ) {
         use BinaryOperator::*;
 
-        if let Some(eager) = match binary_operation.operator {
+        if let Some(eager) = match operator {
             Mul => Some(Instruction::BinaryMul),
             Div => Some(Instruction::BinaryDiv),
             Add => Some(Instruction::BinaryAdd),
@@ -166,18 +195,18 @@ impl Builder {
             Push => Some(Instruction::BinaryPush),
             Ncl | BinaryOperator::And | BinaryOperator::Or => None,
         } {
-            self.emit_expression(&binary_operation.left);
-            self.emit_expression(&binary_operation.right);
+            self.emit_expression(left);
+            self.emit_expression(right);
             self.add(eager);
 
             return;
         }
 
-        self.emit_expression(&binary_operation.left);
-        match binary_operation.operator {
-            Ncl => self.emit_ncl_operation(&binary_operation.right),
-            And => self.emit_and_operation(&binary_operation.right),
-            Or => self.emit_or_operation(&binary_operation.right),
+        self.emit_expression(left);
+        match operator {
+            Ncl => self.emit_ncl_operation(right),
+            And => self.emit_and_operation(right),
+            Or => self.emit_or_operation(right),
             _ => unreachable!(),
         };
     }
