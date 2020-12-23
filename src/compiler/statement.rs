@@ -42,12 +42,20 @@ impl Builder {
         }
     }
 
-    pub fn emit_if_statement(&mut self, if_statement: &AstIfStatement) {
-        self.emit_expression(&if_statement.condition);
+    pub fn emit_if_statement(
+        &mut self,
+        AstIfStatement {
+            condition,
+            block,
+            else_statement,
+            ..
+        }: &AstIfStatement,
+    ) {
+        self.emit_expression(condition);
         let jump_else_or_end_if_not_true = self.blank();
-        self.emit_block(&if_statement.block);
+        self.emit_block(block);
 
-        if let Some(else_statement) = &if_statement.else_statement {
+        if let Some(else_statement) = else_statement {
             let jump_end = self.blank();
             self.set(
                 jump_else_or_end_if_not_true,
@@ -63,41 +71,46 @@ impl Builder {
         }
     }
 
-    pub fn emit_else_statement(&mut self, else_statement: &AstElseStatement) {
+    pub fn emit_else_statement(&mut self, AstElseStatement { next, .. }: &AstElseStatement) {
         use AstElseStatementNextVariant::*;
-        match &else_statement.next {
+        match next {
             Some(IfStatement(if_statement)) => self.emit_if_statement(&if_statement),
-            Some(ElseStatement(else_statement)) => self.emit_else_statement(&else_statement),
+            Some(Block(block)) => self.emit_block(block),
             None => {}
         }
     }
 
-    pub fn emit_loop_statement(&mut self, while_statement: &AstLoopStatement) {
+    pub fn emit_loop_statement(&mut self, AstLoopStatement { block, .. }: &AstLoopStatement) {
         self.mark(self.end(), Marker::LoopStart);
-        let start_line = self.end();
-        self.emit_block(&while_statement.block);
-        self.add(Instruction::Jump(start_line));
+        let start = self.end();
+        self.emit_block(block);
+        self.add(Instruction::Jump(start));
         self.mark(self.end(), Marker::LoopEnd);
     }
 
-    pub fn emit_while_statement(&mut self, else_statement: &AstWhileStatement) {
+    pub fn emit_while_statement(
+        &mut self,
+        AstWhileStatement {
+            condition, block, ..
+        }: &AstWhileStatement,
+    ) {
         self.mark(self.end(), Marker::LoopStart);
-        let start_line = self.end();
-        self.emit_expression(&else_statement.condition);
+        let start = self.end();
+        self.emit_expression(condition);
         self.add(Instruction::JumpIf(self.end() + 2));
 
         self.blank();
-        let jump_line = self.last();
-        self.emit_block(&else_statement.block);
-        self.add(Instruction::Jump(start_line));
+        let jump = self.last();
+        self.emit_block(block);
+        self.add(Instruction::Jump(start));
 
-        let end_line = self.end();
-        self.mark(end_line, Marker::LoopEnd);
-        self.set(jump_line, Instruction::Jump(end_line));
+        let end = self.end();
+        self.mark(end, Marker::LoopEnd);
+        self.set(jump, Instruction::Jump(end));
     }
 
-    pub fn emit_return_statement(&mut self, return_statement: &AstReturnStatement) {
-        if let Some(value) = &return_statement.value {
+    pub fn emit_return_statement(&mut self, AstReturnStatement { value, .. }: &AstReturnStatement) {
+        if let Some(value) = value {
             self.emit_expression(&value);
         } else {
             self.add(Instruction::PushNull);
@@ -116,39 +129,42 @@ impl Builder {
         self.mark(self.last(), Marker::Continue);
     }
 
-    pub fn emit_echo_statement(&mut self, echo_statement: &AstEchoStatement) {
-        self.emit_expression(&echo_statement.value);
+    pub fn emit_echo_statement(&mut self, AstEchoStatement { value, .. }: &AstEchoStatement) {
+        self.emit_expression(value);
         self.add(Instruction::Echo);
     }
 
-    pub fn emit_function_statement(&mut self, function_statement: &AstFunctionStatement) {
-        let name = &function_statement.function.name.name;
+    pub fn emit_function_statement(
+        &mut self,
+        AstFunctionStatement { function, .. }: &AstFunctionStatement,
+    ) {
+        let name = &function.name.name;
         self.add(Instruction::DeclareVariable(name.clone()));
-        self.emit_function(&function_statement.function);
+        self.emit_function(function);
         self.add(Instruction::AssignVariable(name.clone()));
     }
 
     pub fn emit_variable_declaration_statement(
         &mut self,
-        variable_declaration_statement: &AstVariableDeclarationStatement,
+        AstVariableDeclarationStatement {
+            identifier, value, ..
+        }: &AstVariableDeclarationStatement,
     ) {
-        let name = &variable_declaration_statement.identifier.name;
+        let name = &identifier.name;
         self.add(Instruction::DeclareVariable(name.clone()));
-        self.emit_expression(&variable_declaration_statement.value);
+        self.emit_expression(value);
         self.add(Instruction::AssignVariable(name.clone()));
     }
     pub fn emit_variable_assignment_statement(
         &mut self,
-        variable_assignment_statement: &AstVariableAssignmentStatement,
-    ) {
-        let AstVariableAssignmentStatement {
+        AstVariableAssignmentStatement {
             identifier,
             operator,
             value,
             ..
-        } = variable_assignment_statement;
+        }: &AstVariableAssignmentStatement,
+    ) {
         let name = &identifier.name;
-
         if *operator != AssignmentOperator::Direct {
             self.add(Instruction::PushVariable(name.clone()));
         }
@@ -184,10 +200,10 @@ impl Builder {
 
     pub fn emit_chain_assignment_statement(
         &mut self,
-        chain_assignment_statement: &AstChainAssignmentStatementVariant,
+        variant: &AstChainAssignmentStatementVariant,
     ) {
         use AstChainAssignmentStatementVariant::*;
-        match chain_assignment_statement {
+        match variant {
             Index(index_assignment_statement) => {
                 self.emit_index_assignment_statement(index_assignment_statement)
             }
@@ -199,46 +215,51 @@ impl Builder {
 
     pub fn emit_index_assignment_statement(
         &mut self,
-        index_assignment_statement: &AstIndexAssignmentStatement,
+        AstIndexAssignmentStatement {
+            index,
+            operator,
+            value,
+            ..
+        }: &AstIndexAssignmentStatement,
     ) {
-        self.emit_chain(&index_assignment_statement.index.target);
-        self.emit_index(&index_assignment_statement.index);
+        self.emit_chain(&index.target);
+        self.emit_index(index);
 
-        if index_assignment_statement.operator != AssignmentOperator::Direct {
+        if *operator != AssignmentOperator::Direct {
             self.add(Instruction::DuplicateTop(2));
             self.add(Instruction::GetIndex);
         }
 
-        self.emit_set_index_value(
-            &index_assignment_statement.operator,
-            &index_assignment_statement.value,
-        );
+        self.emit_set_index_value(operator, value);
         self.add(Instruction::SetIndex);
     }
 
     pub fn emit_dot_assignment_statement(
         &mut self,
-        dot_assignment_statement: &AstDotAssignmentStatement,
+        AstDotAssignmentStatement {
+            dot,
+            operator,
+            value,
+            ..
+        }: &AstDotAssignmentStatement,
     ) {
-        self.emit_chain(&dot_assignment_statement.dot.target);
-        self.add(Instruction::PushString(
-            dot_assignment_statement.dot.property.name.clone(),
-        ));
+        self.emit_chain(&dot.target);
+        self.add(Instruction::PushString(dot.property.name.clone()));
 
-        if dot_assignment_statement.operator != AssignmentOperator::Direct {
+        if *operator != AssignmentOperator::Direct {
             self.add(Instruction::DuplicateTop(2));
             self.add(Instruction::GetIndex);
         }
 
-        self.emit_set_index_value(
-            &dot_assignment_statement.operator,
-            &dot_assignment_statement.value,
-        );
+        self.emit_set_index_value(operator, value);
         self.add(Instruction::SetIndex);
     }
 
-    pub fn emit_expression_statement(&mut self, expression_statement: &AstExpressionStatement) {
-        self.emit_expression(&expression_statement.expression);
+    pub fn emit_expression_statement(
+        &mut self,
+        AstExpressionStatement { expression, .. }: &AstExpressionStatement,
+    ) {
+        self.emit_expression(expression);
         self.add(Instruction::Pop);
     }
 }

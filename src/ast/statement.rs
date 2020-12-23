@@ -101,19 +101,16 @@ pub struct AstElseStatement {
 #[derive(Debug)]
 pub enum AstElseStatementNextVariant {
     IfStatement(Box<AstIfStatement>),
-    ElseStatement(Box<AstElseStatement>),
+    Block(Box<AstBlock>),
 }
 
 impl AstElseStatementNextVariant {
     pub fn parse(pair: ParsePair, context: &ParseContext) -> Self {
-        assert_eq!(pair.as_rule(), ParseRule::else_statement);
         match pair.as_rule() {
             ParseRule::if_statement => {
                 Self::IfStatement(AstIfStatement::parse(pair, context).into())
             }
-            ParseRule::else_statement => {
-                Self::ElseStatement(AstElseStatement::parse(pair, context).into())
-            }
+            ParseRule::block => Self::Block(AstBlock::parse(pair, context).into()),
             _ => unreachable!(),
         }
     }
