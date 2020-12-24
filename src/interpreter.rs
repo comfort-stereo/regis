@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
-use crate::ast::parser::parse_module;
+use crate::ast::base::AstModule;
+use crate::ast::Ast;
 use crate::compiler::bytecode::{Bytecode, Instruction};
 use crate::compiler::compile_module;
 use crate::dict::Dict;
@@ -27,7 +28,7 @@ impl Interpreter {
     }
 
     pub fn run_module(&mut self, code: &str) -> Result<(), InterpreterError> {
-        let ast = match parse_module(&code) {
+        let ast = match Ast::<AstModule>::parse_module(&code) {
             Ok(ast) => ast,
             Err(error) => {
                 return Err(InterpreterError::ParseError { error });

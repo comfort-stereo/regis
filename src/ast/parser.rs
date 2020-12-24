@@ -3,7 +3,6 @@ use pest::iterators::{Pair, Pairs};
 use pest::prec_climber::{Assoc, Operator, PrecClimber};
 use pest::Parser;
 
-use super::base::AstModule;
 use super::node::AstNodeInfo;
 
 #[derive(Parser)]
@@ -19,25 +18,15 @@ pub type ParseError = Error<ParseRule>;
 pub type ParseOperator = Operator<ParseRule>;
 
 #[derive(Debug)]
-pub struct ParseContext {
-    is_in_function: bool,
-}
+pub struct ParseContext;
 
 impl Default for ParseContext {
     fn default() -> Self {
-        Self {
-            is_in_function: false,
-        }
+        Self {}
     }
 }
 
-pub trait AstNode: Sized + Default {}
-
-pub fn parse_module(code: &str) -> Result<AstModule, ParseError> {
-    read(ParseRule::module, code).map(|root| AstModule::parse(root, &ParseContext::default()))
-}
-
-fn read(rule: Rule, code: &str) -> Result<ParsePair, ParseError> {
+pub fn parse(rule: ParseRule, code: &str) -> Result<ParsePair, ParseError> {
     let pairs = InnerParser::parse(rule, code)?.into_iter();
     for pair in pairs {
         return Ok(pair);
