@@ -11,20 +11,21 @@ use super::bytecode::Instruction;
 
 impl Builder {
     pub fn emit_expression(&mut self, expression: &AstExpressionVariant) {
-        use AstExpressionVariant::*;
         match expression {
-            Null(null) => self.emit_null(null),
-            Boolean(boolean) => self.emit_boolean(boolean),
-            Number(number) => self.emit_number(number),
-            String(string) => self.emit_string(string),
-            Identifier(identifier) => self.emit_identifier(identifier),
-            List(list) => self.emit_list(list),
-            Dict(dict) => self.emit_dict(dict),
-            Function(function) => self.emit_function(function),
-            Lambda(lambda) => self.emit_lambda(lambda),
-            Wrapped(wrapped) => self.emit_wrapped(wrapped),
-            Chain(chain) => self.emit_chain(chain),
-            BinaryOperation(binary_operation) => self.emit_binary_operation(binary_operation),
+            AstExpressionVariant::Null(null) => self.emit_null(null),
+            AstExpressionVariant::Boolean(boolean) => self.emit_boolean(boolean),
+            AstExpressionVariant::Number(number) => self.emit_number(number),
+            AstExpressionVariant::String(string) => self.emit_string(string),
+            AstExpressionVariant::Identifier(identifier) => self.emit_identifier(identifier),
+            AstExpressionVariant::List(list) => self.emit_list(list),
+            AstExpressionVariant::Dict(dict) => self.emit_dict(dict),
+            AstExpressionVariant::Function(function) => self.emit_function(function),
+            AstExpressionVariant::Lambda(lambda) => self.emit_lambda(lambda),
+            AstExpressionVariant::Wrapped(wrapped) => self.emit_wrapped(wrapped),
+            AstExpressionVariant::Chain(chain) => self.emit_chain(chain),
+            AstExpressionVariant::BinaryOperation(binary_operation) => {
+                self.emit_binary_operation(binary_operation)
+            }
         }
     }
 
@@ -58,13 +59,16 @@ impl Builder {
 
     pub fn emit_dict(&mut self, AstDict { pairs, .. }: &AstDict) {
         for AstPair { key, value, .. } in pairs.iter().rev() {
-            use AstKeyVariant::*;
             match key {
-                Identifier(AstIdentifier { name, .. }) => {
+                AstKeyVariant::Identifier(AstIdentifier { name, .. }) => {
                     self.add(Instruction::PushString(name.clone()))
                 }
-                String(AstString { value, .. }) => self.add(Instruction::PushString(value.clone())),
-                KeyExpression(AstKeyExpression { value, .. }) => self.emit_expression(value),
+                AstKeyVariant::String(AstString { value, .. }) => {
+                    self.add(Instruction::PushString(value.clone()))
+                }
+                AstKeyVariant::KeyExpression(AstKeyExpression { value, .. }) => {
+                    self.emit_expression(value)
+                }
             }
 
             self.emit_expression(value);
@@ -104,12 +108,9 @@ impl Builder {
         }: &AstLambda,
     ) {
         let mut compiler = Builder::new();
-        {
-            use AstLambdaBodyVariant::*;
-            match body {
-                Block(block) => compiler.emit_unscoped_block(&block),
-                Expression(expression) => compiler.emit_expression(&expression),
-            }
+        match body {
+            AstLambdaBodyVariant::Block(block) => compiler.emit_unscoped_block(&block),
+            AstLambdaBodyVariant::Expression(expression) => compiler.emit_expression(&expression),
         }
 
         let bytecode = compiler.build();
@@ -130,12 +131,11 @@ impl Builder {
     }
 
     pub fn emit_chain(&mut self, chain: &AstChainVariant) {
-        use AstChainVariant::*;
         match chain {
-            Index(index) => self.emit_index(&index),
-            Dot(dot) => self.emit_dot(&dot),
-            Call(call) => self.emit_call(&call),
-            Expression(expression) => self.emit_expression(&expression),
+            AstChainVariant::Index(index) => self.emit_index(&index),
+            AstChainVariant::Dot(dot) => self.emit_dot(&dot),
+            AstChainVariant::Call(call) => self.emit_call(&call),
+            AstChainVariant::Expression(expression) => self.emit_expression(&expression),
         }
     }
 
@@ -179,21 +179,19 @@ impl Builder {
             ..
         }: &AstBinaryOperation,
     ) {
-        use BinaryOperator::*;
-
         if let Some(eager) = match operator {
-            Mul => Some(Instruction::BinaryMul),
-            Div => Some(Instruction::BinaryDiv),
-            Add => Some(Instruction::BinaryAdd),
-            Sub => Some(Instruction::BinarySub),
-            Gt => Some(Instruction::BinaryGt),
-            Lt => Some(Instruction::BinaryLt),
-            Gte => Some(Instruction::BinaryGte),
-            Lte => Some(Instruction::BinaryLte),
-            Eq => Some(Instruction::BinaryEq),
-            Neq => Some(Instruction::BinaryNeq),
-            Push => Some(Instruction::BinaryPush),
-            Ncl | BinaryOperator::And | BinaryOperator::Or => None,
+            BinaryOperator::Mul => Some(Instruction::BinaryMul),
+            BinaryOperator::Div => Some(Instruction::BinaryDiv),
+            BinaryOperator::Add => Some(Instruction::BinaryAdd),
+            BinaryOperator::Sub => Some(Instruction::BinarySub),
+            BinaryOperator::Gt => Some(Instruction::BinaryGt),
+            BinaryOperator::Lt => Some(Instruction::BinaryLt),
+            BinaryOperator::Gte => Some(Instruction::BinaryGte),
+            BinaryOperator::Lte => Some(Instruction::BinaryLte),
+            BinaryOperator::Eq => Some(Instruction::BinaryEq),
+            BinaryOperator::Neq => Some(Instruction::BinaryNeq),
+            BinaryOperator::Push => Some(Instruction::BinaryPush),
+            BinaryOperator::Ncl | BinaryOperator::And | BinaryOperator::Or => None,
         } {
             self.emit_expression(left);
             self.emit_expression(right);
@@ -204,9 +202,9 @@ impl Builder {
 
         self.emit_expression(left);
         match operator {
-            Ncl => self.emit_ncl_operation(right),
-            And => self.emit_and_operation(right),
-            Or => self.emit_or_operation(right),
+            BinaryOperator::Ncl => self.emit_ncl_operation(right),
+            BinaryOperator::And => self.emit_and_operation(right),
+            BinaryOperator::Or => self.emit_or_operation(right),
             _ => unreachable!(),
         };
     }

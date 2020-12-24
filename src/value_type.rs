@@ -14,13 +14,13 @@ pub enum ValueType {
 impl Display for ValueType {
     fn fmt(&self, formatter: &mut Formatter) -> Result {
         match self {
-            ValueType::Null => write!(formatter, "null"),
-            ValueType::Boolean => write!(formatter, "boolean"),
-            ValueType::Number => write!(formatter, "number"),
-            ValueType::String => write!(formatter, "string"),
-            ValueType::List => write!(formatter, "list"),
-            ValueType::Dict => write!(formatter, "dict"),
-            ValueType::Function => write!(formatter, "function"),
+            Self::Null => write!(formatter, "null"),
+            Self::Boolean => write!(formatter, "boolean"),
+            Self::Number => write!(formatter, "number"),
+            Self::String => write!(formatter, "string"),
+            Self::List => write!(formatter, "list"),
+            Self::Dict => write!(formatter, "dict"),
+            Self::Function => write!(formatter, "function"),
         }
     }
 }

@@ -1,4 +1,5 @@
 use std::cell::{Ref, RefCell, RefMut};
+use std::fmt::{Display, Formatter, Result as FormatResult};
 use std::hash::{Hash, Hasher};
 use std::ops::Deref;
 use std::rc::Rc;
@@ -6,6 +7,15 @@ use std::rc::Rc;
 #[derive(Debug)]
 pub struct SharedMutable<T> {
     inner: Rc<RefCell<T>>,
+}
+
+impl<T> Display for SharedMutable<T>
+where
+    T: Display,
+{
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> FormatResult {
+        self.inner.borrow().fmt(formatter)
+    }
 }
 
 impl<T> From<T> for SharedMutable<T> {
@@ -61,6 +71,15 @@ impl<T> SharedMutable<T> {
 #[derive(Debug)]
 pub struct SharedImmutable<T> {
     inner: Rc<T>,
+}
+
+impl<T> Display for SharedImmutable<T>
+where
+    T: Display,
+{
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> FormatResult {
+        self.inner.fmt(formatter)
+    }
 }
 
 impl<T> From<T> for SharedImmutable<T> {

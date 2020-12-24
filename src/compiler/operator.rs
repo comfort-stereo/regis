@@ -35,28 +35,27 @@ impl Builder {
         operator: &AssignmentOperator,
         value: &AstExpressionVariant,
     ) {
-        use AssignmentOperator::*;
         match operator {
-            Direct => self.emit_expression(value),
-            Mul => {
+            AssignmentOperator::Direct => self.emit_expression(value),
+            AssignmentOperator::Mul => {
                 self.emit_expression(value);
                 self.add(Instruction::BinaryMul);
             }
-            Div => {
+            AssignmentOperator::Div => {
                 self.emit_expression(value);
                 self.add(Instruction::BinaryDiv);
             }
-            Add => {
+            AssignmentOperator::Add => {
                 self.emit_expression(value);
                 self.add(Instruction::BinaryAdd);
             }
-            Sub => {
+            AssignmentOperator::Sub => {
                 self.emit_expression(value);
                 self.add(Instruction::BinarySub);
             }
-            And => self.emit_and_operation(value),
-            Or => self.emit_or_operation(value),
-            Ncl => self.emit_ncl_operation(value),
+            AssignmentOperator::And => self.emit_and_operation(value),
+            AssignmentOperator::Or => self.emit_or_operation(value),
+            AssignmentOperator::Ncl => self.emit_ncl_operation(value),
         }
     }
 }

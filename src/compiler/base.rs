@@ -4,22 +4,22 @@ use super::builder::Builder;
 use super::bytecode::Instruction;
 
 impl Builder {
-    pub fn emit_module(&mut self, module: &AstModule) {
-        for statement in &module.statements {
+    pub fn emit_module(&mut self, AstModule { statements, .. }: &AstModule) {
+        for statement in statements {
             self.emit_statement(statement);
         }
     }
 
-    pub fn emit_block(&mut self, block: &AstBlock) {
+    pub fn emit_block(&mut self, AstBlock { statements, .. }: &AstBlock) {
         self.add(Instruction::PushScope);
-        for statement in &block.statements {
+        for statement in statements {
             self.emit_statement(&statement);
         }
         self.add(Instruction::PopScope);
     }
 
-    pub fn emit_unscoped_block(&mut self, block: &AstBlock) {
-        for statement in &block.statements {
+    pub fn emit_unscoped_block(&mut self, AstBlock { statements, .. }: &AstBlock) {
+        for statement in statements {
             self.emit_statement(&statement);
         }
     }

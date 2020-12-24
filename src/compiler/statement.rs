@@ -12,31 +12,42 @@ use super::bytecode::{Instruction, Marker};
 
 impl Builder {
     pub fn emit_statement(&mut self, variant: &AstStatementVariant) {
-        use AstStatementVariant::*;
         match variant {
-            IfStatement(if_statement) => self.emit_if_statement(if_statement),
-            ElseStatement(else_statement) => self.emit_else_statement(else_statement),
-            LoopStatement(loop_statement) => self.emit_loop_statement(loop_statement),
-            WhileStatement(while_statement) => self.emit_while_statement(while_statement),
-            ReturnStatement(return_statement) => self.emit_return_statement(return_statement),
-            BreakStatement(break_statement) => self.emit_break_statement(break_statement),
-            ContinueStatement(continue_statement) => {
+            AstStatementVariant::IfStatement(if_statement) => self.emit_if_statement(if_statement),
+            AstStatementVariant::ElseStatement(else_statement) => {
+                self.emit_else_statement(else_statement)
+            }
+            AstStatementVariant::LoopStatement(loop_statement) => {
+                self.emit_loop_statement(loop_statement)
+            }
+            AstStatementVariant::WhileStatement(while_statement) => {
+                self.emit_while_statement(while_statement)
+            }
+            AstStatementVariant::ReturnStatement(return_statement) => {
+                self.emit_return_statement(return_statement)
+            }
+            AstStatementVariant::BreakStatement(break_statement) => {
+                self.emit_break_statement(break_statement)
+            }
+            AstStatementVariant::ContinueStatement(continue_statement) => {
                 self.emit_continue_statement(continue_statement)
             }
-            EchoStatement(echo_statement) => self.emit_echo_statement(echo_statement),
-            FunctionStatement(function_statement) => {
+            AstStatementVariant::EchoStatement(echo_statement) => {
+                self.emit_echo_statement(echo_statement)
+            }
+            AstStatementVariant::FunctionStatement(function_statement) => {
                 self.emit_function_statement(function_statement)
             }
-            VariableDeclarationStatement(variable_declaration_statement) => {
+            AstStatementVariant::VariableDeclarationStatement(variable_declaration_statement) => {
                 self.emit_variable_declaration_statement(variable_declaration_statement)
             }
-            VariableAssignmentStatement(variable_assignment_statement) => {
+            AstStatementVariant::VariableAssignmentStatement(variable_assignment_statement) => {
                 self.emit_variable_assignment_statement(variable_assignment_statement)
             }
-            AstChainAssignmentStatement(chain_assignment_statement) => {
+            AstStatementVariant::AstChainAssignmentStatement(chain_assignment_statement) => {
                 self.emit_chain_assignment_statement(chain_assignment_statement)
             }
-            ExpressionStatement(expression_statement) => {
+            AstStatementVariant::ExpressionStatement(expression_statement) => {
                 self.emit_expression_statement(expression_statement)
             }
         }
@@ -72,10 +83,11 @@ impl Builder {
     }
 
     pub fn emit_else_statement(&mut self, AstElseStatement { next, .. }: &AstElseStatement) {
-        use AstElseStatementNextVariant::*;
         match next {
-            Some(IfStatement(if_statement)) => self.emit_if_statement(&if_statement),
-            Some(Block(block)) => self.emit_block(block),
+            Some(AstElseStatementNextVariant::IfStatement(if_statement)) => {
+                self.emit_if_statement(&if_statement)
+            }
+            Some(AstElseStatementNextVariant::Block(block)) => self.emit_block(block),
             None => {}
         }
     }
@@ -95,18 +107,18 @@ impl Builder {
         }: &AstWhileStatement,
     ) {
         self.mark(self.end(), Marker::LoopStart);
-        let start = self.end();
+        let start_line = self.end();
         self.emit_expression(condition);
         self.add(Instruction::JumpIf(self.end() + 2));
 
         self.blank();
-        let jump = self.last();
+        let jump_line = self.last();
         self.emit_block(block);
-        self.add(Instruction::Jump(start));
+        self.add(Instruction::Jump(start_line));
 
-        let end = self.end();
-        self.mark(end, Marker::LoopEnd);
-        self.set(jump, Instruction::Jump(end));
+        let end_line = self.end();
+        self.mark(end_line, Marker::LoopEnd);
+        self.set(jump_line, Instruction::Jump(end_line));
     }
 
     pub fn emit_return_statement(&mut self, AstReturnStatement { value, .. }: &AstReturnStatement) {
@@ -169,30 +181,27 @@ impl Builder {
             self.add(Instruction::PushVariable(name.clone()));
         }
 
-        {
-            use AssignmentOperator::*;
-            match operator {
-                Direct => self.emit_expression(value),
-                Mul => {
-                    self.emit_expression(value);
-                    self.add(Instruction::BinaryMul);
-                }
-                Div => {
-                    self.emit_expression(value);
-                    self.add(Instruction::BinaryDiv);
-                }
-                Add => {
-                    self.emit_expression(value);
-                    self.add(Instruction::BinaryAdd);
-                }
-                Sub => {
-                    self.emit_expression(value);
-                    self.add(Instruction::BinarySub);
-                }
-                And => self.emit_and_operation(value),
-                Or => self.emit_or_operation(value),
-                Ncl => self.emit_ncl_operation(value),
+        match operator {
+            AssignmentOperator::Direct => self.emit_expression(value),
+            AssignmentOperator::Mul => {
+                self.emit_expression(value);
+                self.add(Instruction::BinaryMul);
             }
+            AssignmentOperator::Div => {
+                self.emit_expression(value);
+                self.add(Instruction::BinaryDiv);
+            }
+            AssignmentOperator::Add => {
+                self.emit_expression(value);
+                self.add(Instruction::BinaryAdd);
+            }
+            AssignmentOperator::Sub => {
+                self.emit_expression(value);
+                self.add(Instruction::BinarySub);
+            }
+            AssignmentOperator::And => self.emit_and_operation(value),
+            AssignmentOperator::Or => self.emit_or_operation(value),
+            AssignmentOperator::Ncl => self.emit_ncl_operation(value),
         }
 
         self.add(Instruction::AssignVariable(name.clone()));
