@@ -1,0 +1,40 @@
+use crate::shared::SharedImmutable;
+
+use super::procedure::Procedure;
+
+#[derive(Debug)]
+pub enum Instruction {
+    Blank,
+    Pop,
+    Duplicate,
+    DuplicateTop(usize),
+    JumpIf(usize),
+    JumpUnless(usize),
+    Jump(usize),
+    Return,
+    IsNull,
+    PushNull,
+    PushBoolean(bool),
+    PushNumber(f64),
+    PushString(SharedImmutable<String>),
+    PushVariable(usize),
+    AssignVariable(usize),
+    CreateList(usize),
+    CreateDict(usize),
+    CreateFunction(SharedImmutable<Procedure>),
+    Call(usize),
+    BinaryAdd,
+    BinaryDiv,
+    BinaryMul,
+    BinarySub,
+    BinaryGt,
+    BinaryLt,
+    BinaryGte,
+    BinaryLte,
+    BinaryEq,
+    BinaryNeq,
+    BinaryPush,
+    GetIndex,
+    SetIndex,
+    Echo,
+}

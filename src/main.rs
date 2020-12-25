@@ -6,21 +6,15 @@ extern crate pest_derive;
 extern crate indexmap;
 extern crate uuid;
 
-mod ast;
-mod compiler;
-mod dict;
-mod function;
-mod interpreter;
-mod interpreter_error;
-mod list;
-mod oid;
-mod shared;
-mod unescape;
-mod value;
-mod value_type;
+pub mod ast;
+pub mod bytecode;
+pub mod interpreter;
+pub mod shared;
+pub mod vm;
 
-use crate::interpreter::Interpreter;
 use std::{env, fs, process};
+
+use interpreter::Interpreter;
 
 fn main() {
     let args = env::args().collect::<Vec<String>>();
@@ -37,8 +31,8 @@ fn main() {
         process::exit(3);
     });
 
-    let mut vm = Interpreter::new();
-    match vm.run_module(&code) {
+    let mut interpreter = Interpreter::new();
+    match interpreter.run_module(&code) {
         Ok(()) => {}
         Err(error) => {
             println!("{}", error);

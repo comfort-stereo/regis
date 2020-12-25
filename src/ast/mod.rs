@@ -10,6 +10,8 @@ pub mod operator;
 pub mod parser;
 pub mod statement;
 
+mod unescape;
+
 #[derive(Debug)]
 pub struct Ast<T> {
     root: T,

@@ -1,11 +1,10 @@
 use std::hash::{Hash, Hasher};
 
-use crate::interpreter_error::InterpreterError;
-use crate::oid::oid;
 use crate::shared::SharedMutable;
-use crate::value::Value;
+use crate::vm::error::VmError;
 
-use crate::value_type::ValueType;
+use super::rid::rid;
+use super::value::{Value, ValueType};
 
 #[derive(Debug)]
 pub struct List {
@@ -30,7 +29,7 @@ impl Hash for List {
 impl List {
     pub fn new() -> Self {
         Self {
-            id: oid(),
+            id: rid(),
             inner: Vec::new(),
         }
     }
@@ -54,7 +53,7 @@ impl List {
         )
     }
 
-    pub fn get(&self, index: Value) -> Result<Value, InterpreterError> {
+    pub fn get(&self, index: Value) -> Result<Value, VmError> {
         match index {
             Value::Number(number) => {
                 let index = number as usize;
@@ -64,19 +63,19 @@ impl List {
 
                 Ok(self.inner[index].clone())
             }
-            _ => Err(InterpreterError::InvalidIndexAccess {
+            _ => Err(VmError::InvalidIndexAccess {
                 target_type: self.type_of(),
                 index: index.to_string(),
             }),
         }
     }
 
-    pub fn set(&mut self, index: Value, value: Value) -> Result<(), InterpreterError> {
+    pub fn set(&mut self, index: Value, value: Value) -> Result<(), VmError> {
         match index {
             Value::Number(number) => {
                 let index = number as usize;
                 if number < 0f64 || index >= self.inner.len() {
-                    return Err(InterpreterError::InvalidIndexAssignment {
+                    return Err(VmError::InvalidIndexAssignment {
                         target_type: self.type_of(),
                         index: number.to_string(),
                     });
@@ -85,7 +84,7 @@ impl List {
                 self.inner[index] = value;
                 Ok(())
             }
-            _ => Err(InterpreterError::InvalidIndexAssignment {
+            _ => Err(VmError::InvalidIndexAssignment {
                 target_type: self.type_of(),
                 index: index.to_string(),
             }),

@@ -1,8 +1,8 @@
 use crate::ast::expression::AstExpressionVariant;
 use crate::ast::operator::AssignmentOperator;
 
+use super::super::instruction::Instruction;
 use super::builder::Builder;
-use super::bytecode::Instruction;
 
 impl Builder {
     pub fn emit_ncl_operation(&mut self, value: &AstExpressionVariant) {

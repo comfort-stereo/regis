@@ -1,10 +1,11 @@
 use indexmap::IndexMap;
 use std::hash::{Hash, Hasher};
 
-use crate::oid::oid;
 use crate::shared::SharedMutable;
-use crate::value::Value;
-use crate::value_type::ValueType;
+
+use super::rid::rid;
+use super::value::{Value, ValueType};
+
 #[derive(Debug)]
 pub struct Dict {
     id: usize,
@@ -28,7 +29,7 @@ impl Hash for Dict {
 impl Dict {
     pub fn new() -> Self {
         Self {
-            id: oid(),
+            id: rid(),
             inner: IndexMap::new(),
         }
     }

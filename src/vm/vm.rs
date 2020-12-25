@@ -1,23 +1,21 @@
-use crate::ast::base::AstModule;
-use crate::ast::Ast;
-use crate::compiler::bytecode::{Bytecode, Instruction};
-use crate::compiler::compile_module;
-use crate::dict::Dict;
-use crate::function::Function;
-use crate::interpreter_error::InterpreterError;
-use crate::list::List;
+use crate::bytecode::{Bytecode, Instruction, Procedure};
 use crate::shared::SharedImmutable;
-use crate::value::Value;
+
+use super::dict::Dict;
+use super::error::VmError;
+use super::function::Function;
+use super::list::List;
+use super::value::Value;
 
 static DEBUG: bool = false;
 
 #[derive(Debug)]
-pub struct Interpreter {
+pub struct Vm {
     stack: Vec<Value>,
     calls: Vec<Call>,
 }
 
-impl Interpreter {
+impl Vm {
     pub fn new() -> Self {
         Self {
             stack: Vec::new(),
@@ -25,23 +23,15 @@ impl Interpreter {
         }
     }
 
-    pub fn run_module(&mut self, code: &str) -> Result<(), InterpreterError> {
-        let ast = match Ast::<AstModule>::parse_module(&code) {
-            Ok(ast) => ast,
-            Err(error) => {
-                return Err(InterpreterError::ParseError { error });
-            }
-        };
-
-        let bytecode = compile_module(&ast);
-        self.run_bytecode(&bytecode, 0)
+    pub fn run(&mut self, bytecode: &Bytecode) -> Result<(), VmError> {
+        self.run_with_arguments(bytecode, 0)
     }
 
-    fn run_bytecode(
+    pub fn run_with_arguments(
         &mut self,
         bytecode: &Bytecode,
         argument_count: usize,
-    ) -> Result<(), InterpreterError> {
+    ) -> Result<(), VmError> {
         // Any arguments should be allocated on the stack already.
         // Allocate space for all other variables.
         for _ in argument_count..bytecode.variable_count() {
@@ -256,16 +246,16 @@ impl Interpreter {
         self.push(Value::Dict(dict.into()));
     }
 
-    fn instruction_create_function(&mut self, function: SharedImmutable<Function>) {
-        self.push(Value::Function(function));
+    fn instruction_create_function(&mut self, procedure: SharedImmutable<Procedure>) {
+        self.push(Value::Function(Function::new(procedure).into()));
     }
 
-    fn instruction_call(&mut self, argument_count: usize) -> Result<(), InterpreterError> {
+    fn instruction_call(&mut self, argument_count: usize) -> Result<(), VmError> {
         let target = self.pop();
         let function = match target {
             Value::Function(function) => function,
             _ => {
-                return Err(InterpreterError::UndefinedUnaryOperation {
+                return Err(VmError::UndefinedUnaryOperation {
                     operation: format!("{:?}", Instruction::Call(argument_count)),
                     target_type: target.type_of(),
                 })
@@ -273,16 +263,13 @@ impl Interpreter {
         };
 
         self.push_call(argument_count);
-        self.run_bytecode(function.bytecode(), argument_count)?;
+        self.run_with_arguments(function.bytecode(), argument_count)?;
         self.pop_call();
 
         Ok(())
     }
 
-    fn instruction_binary_operation(
-        &mut self,
-        instruction: &Instruction,
-    ) -> Result<(), InterpreterError> {
+    fn instruction_binary_operation(&mut self, instruction: &Instruction) -> Result<(), VmError> {
         let right = self.pop();
         let left = self.pop();
 
@@ -337,7 +324,7 @@ impl Interpreter {
             self.push(result);
             Ok(())
         } else {
-            Err(InterpreterError::UndefinedBinaryOperation {
+            Err(VmError::UndefinedBinaryOperation {
                 operation: format!("{:?}", instruction),
                 target_type: left.type_of(),
                 other_type: right.type_of(),
@@ -345,14 +332,14 @@ impl Interpreter {
         }
     }
 
-    fn instruction_get_index(&mut self) -> Result<(), InterpreterError> {
+    fn instruction_get_index(&mut self) -> Result<(), VmError> {
         let index = self.pop();
         let target = self.pop();
         let value = match target {
             Value::List(list) => list.borrow().get(index)?,
             Value::Dict(dict) => dict.borrow().get(index),
             _ => {
-                return Err(InterpreterError::InvalidIndexAccess {
+                return Err(VmError::InvalidIndexAccess {
                     target_type: target.type_of(),
                     index: index.to_string(),
                 })
@@ -363,7 +350,7 @@ impl Interpreter {
         Ok(())
     }
 
-    fn instruction_set_index(&mut self) -> Result<(), InterpreterError> {
+    fn instruction_set_index(&mut self) -> Result<(), VmError> {
         let value = self.pop();
         let index = self.pop();
         let target = self.pop();
@@ -372,7 +359,7 @@ impl Interpreter {
             Value::List(list) => list.borrow_mut().set(index, value)?,
             Value::Dict(dict) => dict.borrow_mut().set(index, value),
             _ => {
-                return Err(InterpreterError::InvalidIndexAssignment {
+                return Err(VmError::InvalidIndexAssignment {
                     target_type: target.type_of(),
                     index: index.to_string(),
                 })

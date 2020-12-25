@@ -1,52 +1,6 @@
 use std::fmt::{Debug, Formatter, Result as FormatResult};
 
-use crate::function::Function;
-use crate::shared::SharedImmutable;
-
-#[derive(Debug, Clone)]
-pub enum Instruction {
-    Blank,
-    Pop,
-    Duplicate,
-    DuplicateTop(usize),
-    JumpIf(usize),
-    JumpUnless(usize),
-    Jump(usize),
-    Return,
-    IsNull,
-    PushNull,
-    PushBoolean(bool),
-    PushNumber(f64),
-    PushString(SharedImmutable<String>),
-    PushVariable(usize),
-    AssignVariable(usize),
-    CreateList(usize),
-    CreateDict(usize),
-    CreateFunction(SharedImmutable<Function>),
-    Call(usize),
-    BinaryAdd,
-    BinaryDiv,
-    BinaryMul,
-    BinarySub,
-    BinaryGt,
-    BinaryLt,
-    BinaryGte,
-    BinaryLte,
-    BinaryEq,
-    BinaryNeq,
-    BinaryPush,
-    GetIndex,
-    SetIndex,
-    Echo,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Marker {
-    LoopStart,
-    LoopEnd,
-    Break,
-    Continue,
-}
+use super::instruction::Instruction;
 
 pub struct Bytecode {
     instructions: Vec<Instruction>,

@@ -2,7 +2,9 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 use crate::shared::SharedImmutable;
 
-use super::bytecode::{Bytecode, Instruction, Marker};
+use super::super::bytecode::Bytecode;
+use super::super::instruction::Instruction;
+use super::marker::Marker;
 
 type Scope = HashMap<SharedImmutable<String>, usize>;
 

@@ -1,10 +1,11 @@
+use std::fmt::{Display, Formatter, Result};
 use std::hash::{Hash, Hasher};
 
-use crate::dict::Dict;
-use crate::function::Function;
-use crate::list::List;
 use crate::shared::{SharedImmutable, SharedMutable};
-use crate::value_type::ValueType;
+
+use super::dict::Dict;
+use super::function::Function;
+use super::list::List;
 
 #[derive(Debug)]
 pub enum Value {
@@ -96,6 +97,31 @@ impl Value {
             Self::List(value) => value.borrow().to_string(),
             Self::Dict(value) => value.borrow().to_string(),
             Self::Function(value) => value.to_string(),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum ValueType {
+    Null,
+    Boolean,
+    Number,
+    String,
+    List,
+    Dict,
+    Function,
+}
+
+impl Display for ValueType {
+    fn fmt(&self, formatter: &mut Formatter) -> Result {
+        match self {
+            Self::Null => write!(formatter, "null"),
+            Self::Boolean => write!(formatter, "boolean"),
+            Self::Number => write!(formatter, "number"),
+            Self::String => write!(formatter, "string"),
+            Self::List => write!(formatter, "list"),
+            Self::Dict => write!(formatter, "dict"),
+            Self::Function => write!(formatter, "function"),
         }
     }
 }

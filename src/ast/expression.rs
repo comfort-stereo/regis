@@ -6,7 +6,7 @@ use super::operator::BinaryOperator;
 use super::parser::{
     content, inner, ParseAssoc, ParseContext, ParseOperator, ParsePair, ParsePrecClimber, ParseRule,
 };
-use crate::unescape::unescape;
+use super::unescape::unescape;
 
 #[derive(Debug)]
 pub enum AstExpressionVariant {

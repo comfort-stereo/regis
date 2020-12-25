@@ -4,10 +4,10 @@ use crate::ast::expression::{
     AstLambda, AstLambdaBodyVariant, AstList, AstNull, AstNumber, AstPair, AstString, AstWrapped,
 };
 use crate::ast::operator::BinaryOperator;
-use crate::function::Function;
 
-use super::builder::Builder;
-use super::bytecode::Instruction;
+use super::super::builder::Builder;
+use super::super::instruction::Instruction;
+use super::super::procedure::Procedure;
 
 impl Builder {
     pub fn emit_expression(&mut self, expression: &AstExpressionVariant) {
@@ -86,6 +86,7 @@ impl Builder {
             ..
         }: &AstFunction,
     ) {
+        let name = name.name.clone();
         let parameters = parameters
             .iter()
             .map(|parameter| parameter.name.clone())
@@ -100,8 +101,8 @@ impl Builder {
             builder.build()
         };
 
-        let instance = Function::new(Some(name.name.clone()), parameters, bytecode.into());
-        self.add(Instruction::CreateFunction(instance.into()));
+        let procedure = Procedure::new(Some(name), parameters, bytecode);
+        self.add(Instruction::CreateFunction(procedure.into()));
     }
 
     pub fn emit_lambda(
@@ -129,9 +130,8 @@ impl Builder {
             builder.build()
         };
 
-        let instance = Function::new(None, parameters, bytecode.into());
-
-        self.add(Instruction::CreateFunction(instance.into()));
+        let procedure = Procedure::new(None, parameters, bytecode);
+        self.add(Instruction::CreateFunction(procedure.into()));
     }
 
     pub fn emit_wrapped(&mut self, AstWrapped { value, .. }: &AstWrapped) {

@@ -1,16 +1,15 @@
 use std::hash::{Hash, Hasher};
 
-use crate::compiler::bytecode::Bytecode;
-use crate::oid::oid;
+use crate::bytecode::{Bytecode, Procedure};
 use crate::shared::SharedImmutable;
-use crate::value_type::ValueType;
+
+use super::rid::rid;
+use super::value::ValueType;
 
 #[derive(Debug)]
 pub struct Function {
     id: usize,
-    name: Option<SharedImmutable<String>>,
-    parameters: Vec<SharedImmutable<String>>,
-    bytecode: SharedImmutable<Bytecode>,
+    procedure: SharedImmutable<Procedure>,
 }
 
 impl PartialEq for Function {
@@ -28,16 +27,10 @@ impl Hash for Function {
 }
 
 impl Function {
-    pub fn new(
-        name: Option<SharedImmutable<String>>,
-        parameters: Vec<SharedImmutable<String>>,
-        bytecode: SharedImmutable<Bytecode>,
-    ) -> Self {
+    pub fn new(procedure: SharedImmutable<Procedure>) -> Self {
         Self {
-            id: oid(),
-            name,
-            parameters,
-            bytecode,
+            id: rid(),
+            procedure,
         }
     }
 
@@ -57,14 +50,10 @@ impl Function {
     }
 
     pub fn name(&self) -> Option<SharedImmutable<String>> {
-        self.name.clone()
+        self.procedure.name().clone()
     }
 
-    // pub fn parameters(&self) -> &Vec<SharedImmutable<String>> {
-    //     &self.parameters
-    // }
-
-    pub fn bytecode(&self) -> &SharedImmutable<Bytecode> {
-        &self.bytecode
+    pub fn bytecode(&self) -> &Bytecode {
+        &self.procedure.bytecode()
     }
 }

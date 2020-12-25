@@ -7,8 +7,9 @@ use crate::ast::statement::{
     AstVariableDeclarationStatement, AstWhileStatement,
 };
 
+use super::super::instruction::Instruction;
 use super::builder::Builder;
-use super::bytecode::{Instruction, Marker};
+use super::marker::Marker;
 
 impl Builder {
     pub fn emit_statement(&mut self, variant: &AstStatementVariant) {

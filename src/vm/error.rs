@@ -2,10 +2,12 @@ use pest::error::Error as ParseError;
 use std::fmt::{Display, Formatter, Result};
 
 use crate::ast::parser::ParseRule;
-use crate::value_type::ValueType;
+use crate::vm;
+
+use vm::value::ValueType;
 
 #[derive(Debug)]
-pub enum InterpreterError {
+pub enum VmError {
     ParseError {
         error: ParseError<ParseRule>,
     },
@@ -28,33 +30,12 @@ pub enum InterpreterError {
     },
 }
 
-impl Display for InterpreterError {
+impl Display for VmError {
     fn fmt(&self, formatter: &mut Formatter) -> Result {
         match self {
             Self::ParseError { error } => {
                 write!(formatter, "{}", error)
             }
-            // Self::UndefinedVariableAccess { name } => {
-            //     write!(
-            //         formatter,
-            //         "Attempted to access undefined variable '{}'",
-            //         name
-            //     )
-            // }
-            // Self::UndefinedVariableAssignment { name } => {
-            //     write!(
-            //         formatter,
-            //         "Attempted assignment to undefined variable '{}'",
-            //         name
-            //     )
-            // }
-            // Self::VariableRedeclaration { name } => {
-            //     write!(
-            //         formatter,
-            //         "Redeclaration of previously defined variable '{}'",
-            //         name
-            //     )
-            // }
             Self::UndefinedBinaryOperation {
                 operation,
                 target_type,
