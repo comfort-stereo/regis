@@ -46,7 +46,7 @@ impl Builder {
     }
 
     pub fn emit_identifier(&mut self, AstIdentifier { name, .. }: &AstIdentifier) {
-        self.add(Instruction::PushVariable(name.clone()));
+        self.add(Instruction::PushVariable(self.get_variable_address(name)));
     }
 
     pub fn emit_list(&mut self, AstList { values, .. }: &AstList) {
@@ -86,18 +86,21 @@ impl Builder {
             ..
         }: &AstFunction,
     ) {
-        let mut compiler = Builder::new();
-        compiler.emit_unscoped_block(&block);
-        let bytecode = compiler.build();
-        let instance = Function::new(
-            Some(name.name.clone()),
-            parameters
-                .iter()
-                .map(|parameter| parameter.name.clone())
-                .collect(),
-            bytecode.into(),
-        );
+        let parameters = parameters
+            .iter()
+            .map(|parameter| parameter.name.clone())
+            .collect::<Vec<_>>();
 
+        let bytecode = {
+            let mut builder = Builder::new();
+            for parameter in &parameters {
+                builder.add_variable(parameter.clone());
+            }
+            builder.emit_block(&block);
+            builder.build()
+        };
+
+        let instance = Function::new(Some(name.name.clone()), parameters, bytecode.into());
         self.add(Instruction::CreateFunction(instance.into()));
     }
 
@@ -107,21 +110,26 @@ impl Builder {
             body, parameters, ..
         }: &AstLambda,
     ) {
-        let mut compiler = Builder::new();
-        match body {
-            AstLambdaBodyVariant::Block(block) => compiler.emit_unscoped_block(&block),
-            AstLambdaBodyVariant::Expression(expression) => compiler.emit_expression(&expression),
-        }
+        let parameters = parameters
+            .iter()
+            .map(|parameter| parameter.name.clone())
+            .collect::<Vec<_>>();
 
-        let bytecode = compiler.build();
-        let instance = Function::new(
-            None,
-            parameters
-                .iter()
-                .map(|parameter| parameter.name.clone())
-                .collect(),
-            bytecode.into(),
-        );
+        let bytecode = {
+            let mut builder = Builder::new();
+            for parameter in &parameters {
+                builder.add_variable(parameter.clone());
+            }
+            match body {
+                AstLambdaBodyVariant::Block(block) => builder.emit_block(&block),
+                AstLambdaBodyVariant::Expression(expression) => {
+                    builder.emit_expression(&expression)
+                }
+            }
+            builder.build()
+        };
+
+        let instance = Function::new(None, parameters, bytecode.into());
 
         self.add(Instruction::CreateFunction(instance.into()));
     }
@@ -162,7 +170,7 @@ impl Builder {
             target, arguments, ..
         }: &AstCall,
     ) {
-        for argument in arguments.iter().rev() {
+        for argument in arguments.iter() {
             self.emit_expression(argument);
         }
 

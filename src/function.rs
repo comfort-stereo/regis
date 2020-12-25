@@ -60,9 +60,9 @@ impl Function {
         self.name.clone()
     }
 
-    pub fn parameters(&self) -> &Vec<SharedImmutable<String>> {
-        &self.parameters
-    }
+    // pub fn parameters(&self) -> &Vec<SharedImmutable<String>> {
+    //     &self.parameters
+    // }
 
     pub fn bytecode(&self) -> &SharedImmutable<Bytecode> {
         &self.bytecode

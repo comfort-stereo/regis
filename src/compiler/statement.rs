@@ -151,9 +151,9 @@ impl Builder {
         AstFunctionStatement { function, .. }: &AstFunctionStatement,
     ) {
         let name = &function.name.name;
-        self.add(Instruction::DeclareVariable(name.clone()));
+        let address = self.add_variable(name.clone());
         self.emit_function(function);
-        self.add(Instruction::AssignVariable(name.clone()));
+        self.add(Instruction::AssignVariable(address));
     }
 
     pub fn emit_variable_declaration_statement(
@@ -163,10 +163,11 @@ impl Builder {
         }: &AstVariableDeclarationStatement,
     ) {
         let name = &identifier.name;
-        self.add(Instruction::DeclareVariable(name.clone()));
+        let address = self.add_variable(name.clone());
         self.emit_expression(value);
-        self.add(Instruction::AssignVariable(name.clone()));
+        self.add(Instruction::AssignVariable(address));
     }
+
     pub fn emit_variable_assignment_statement(
         &mut self,
         AstVariableAssignmentStatement {
@@ -178,7 +179,7 @@ impl Builder {
     ) {
         let name = &identifier.name;
         if *operator != AssignmentOperator::Direct {
-            self.add(Instruction::PushVariable(name.clone()));
+            self.add(Instruction::PushVariable(self.get_variable_address(name)));
         }
 
         match operator {
@@ -204,7 +205,7 @@ impl Builder {
             AssignmentOperator::Ncl => self.emit_ncl_operation(value),
         }
 
-        self.add(Instruction::AssignVariable(name.clone()));
+        self.add(Instruction::AssignVariable(self.get_variable_address(name)));
     }
 
     pub fn emit_chain_assignment_statement(
@@ -232,7 +233,7 @@ impl Builder {
         }: &AstIndexAssignmentStatement,
     ) {
         self.emit_chain(&index.target);
-        self.emit_index(index);
+        self.emit_expression(&index.index);
 
         if *operator != AssignmentOperator::Direct {
             self.add(Instruction::DuplicateTop(2));

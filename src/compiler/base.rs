@@ -1,26 +1,21 @@
 use crate::ast::base::{AstBlock, AstModule};
 
 use super::builder::Builder;
-use super::bytecode::Instruction;
 
 impl Builder {
     pub fn emit_module(&mut self, AstModule { statements, .. }: &AstModule) {
+        self.push_scope();
         for statement in statements {
             self.emit_statement(statement);
         }
+        self.pop_scope();
     }
 
     pub fn emit_block(&mut self, AstBlock { statements, .. }: &AstBlock) {
-        self.add(Instruction::PushScope);
+        self.push_scope();
         for statement in statements {
             self.emit_statement(&statement);
         }
-        self.add(Instruction::PopScope);
-    }
-
-    pub fn emit_unscoped_block(&mut self, AstBlock { statements, .. }: &AstBlock) {
-        for statement in statements {
-            self.emit_statement(&statement);
-        }
+        self.pop_scope();
     }
 }

@@ -9,15 +9,6 @@ pub enum InterpreterError {
     ParseError {
         error: ParseError<ParseRule>,
     },
-    UndefinedVariableAccess {
-        name: String,
-    },
-    UndefinedVariableAssignment {
-        name: String,
-    },
-    VariableRedeclaration {
-        name: String,
-    },
     UndefinedBinaryOperation {
         operation: String,
         target_type: ValueType,
@@ -43,27 +34,27 @@ impl Display for InterpreterError {
             Self::ParseError { error } => {
                 write!(formatter, "{}", error)
             }
-            Self::UndefinedVariableAccess { name } => {
-                write!(
-                    formatter,
-                    "Attempted to access undefined variable '{}'",
-                    name
-                )
-            }
-            Self::UndefinedVariableAssignment { name } => {
-                write!(
-                    formatter,
-                    "Attempted assignment to undefined variable '{}'",
-                    name
-                )
-            }
-            Self::VariableRedeclaration { name } => {
-                write!(
-                    formatter,
-                    "Redeclaration of previously defined variable '{}'",
-                    name
-                )
-            }
+            // Self::UndefinedVariableAccess { name } => {
+            //     write!(
+            //         formatter,
+            //         "Attempted to access undefined variable '{}'",
+            //         name
+            //     )
+            // }
+            // Self::UndefinedVariableAssignment { name } => {
+            //     write!(
+            //         formatter,
+            //         "Attempted assignment to undefined variable '{}'",
+            //         name
+            //     )
+            // }
+            // Self::VariableRedeclaration { name } => {
+            //     write!(
+            //         formatter,
+            //         "Redeclaration of previously defined variable '{}'",
+            //         name
+            //     )
+            // }
             Self::UndefinedBinaryOperation {
                 operation,
                 target_type,

@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::ast::base::AstModule;
 use crate::ast::Ast;
 use crate::compiler::bytecode::{Bytecode, Instruction};
@@ -16,14 +14,14 @@ static DEBUG: bool = false;
 #[derive(Debug)]
 pub struct Interpreter {
     stack: Vec<Value>,
-    frames: Vec<StackFrame>,
+    calls: Vec<Call>,
 }
 
 impl Interpreter {
     pub fn new() -> Self {
         Self {
             stack: Vec::new(),
-            frames: vec![StackFrame::new(0)],
+            calls: vec![Call::new(0)],
         }
     }
 
@@ -36,10 +34,20 @@ impl Interpreter {
         };
 
         let bytecode = compile_module(&ast);
-        self.run_bytecode(&bytecode)
+        self.run_bytecode(&bytecode, 0)
     }
 
-    fn run_bytecode(&mut self, bytecode: &Bytecode) -> Result<(), InterpreterError> {
+    fn run_bytecode(
+        &mut self,
+        bytecode: &Bytecode,
+        argument_count: usize,
+    ) -> Result<(), InterpreterError> {
+        // Any arguments should be allocated on the stack already.
+        // Allocate space for all other variables.
+        for _ in argument_count..bytecode.variable_count() {
+            self.push(Value::Null);
+        }
+
         let mut line = 0;
         let end = bytecode.len();
 
@@ -54,11 +62,33 @@ impl Interpreter {
             match instruction {
                 Instruction::Blank => {}
                 Instruction::Pop => self.instruction_pop(),
-                Instruction::PushScope => self.instruction_push_scope(),
-                Instruction::PopScope => self.instruction_pop_scope(),
                 Instruction::Duplicate => self.instruction_duplicate(),
                 Instruction::DuplicateTop(count) => self.instruction_duplicate_top(*count),
+                Instruction::Jump(destination) => next = *destination,
+                Instruction::JumpIf(destination) => {
+                    if self.pop().to_boolean() {
+                        next = *destination;
+                    }
+                }
+                Instruction::JumpUnless(destination) => {
+                    if !self.pop().to_boolean() {
+                        next = *destination;
+                    }
+                }
+                Instruction::Return => break,
                 Instruction::IsNull => self.instruction_is_null(),
+                Instruction::PushNull => self.instruction_push_null(),
+                Instruction::PushBoolean(value) => self.instruction_push_boolean(*value),
+                Instruction::PushNumber(value) => self.instruction_push_number(*value),
+                Instruction::PushString(value) => self.instruction_push_string(value.clone()),
+                Instruction::PushVariable(address) => self.instruction_push_variable(*address),
+                Instruction::AssignVariable(address) => self.instruction_assign_variable(*address),
+                Instruction::CreateList(size) => self.instruction_create_list(*size),
+                Instruction::CreateDict(size) => self.instruction_create_dict(*size),
+                Instruction::CreateFunction(function) => {
+                    self.instruction_create_function(function.clone())
+                }
+                Instruction::Call(argument_count) => self.instruction_call(*argument_count)?,
                 Instruction::BinaryAdd
                 | Instruction::BinaryDiv
                 | Instruction::BinaryMul
@@ -70,37 +100,8 @@ impl Interpreter {
                 | Instruction::BinaryEq
                 | Instruction::BinaryNeq
                 | Instruction::BinaryPush => self.instruction_binary_operation(&instruction)?,
-                Instruction::PushNull => self.instruction_push_null(),
-                Instruction::PushBoolean(value) => self.instruction_push_boolean(*value),
-                Instruction::PushNumber(value) => self.instruction_push_number(*value),
-                Instruction::PushString(value) => self.instruction_push_string(value.clone()),
-                Instruction::PushVariable(name) => self.instruction_push_variable(&name)?,
-                Instruction::CreateList(size) => self.instruction_create_list(*size),
-                Instruction::CreateDict(size) => self.instruction_create_dict(*size),
-                Instruction::CreateFunction(function) => {
-                    self.instruction_create_function(function.clone())
-                }
-                Instruction::Call(argument_count) => self.instruction_call(*argument_count)?,
-                Instruction::DeclareVariable(name) => {
-                    self.instruction_declare_variable(name.clone())?
-                }
-                Instruction::AssignVariable(name) => {
-                    self.instruction_assign_variable(name.clone())?
-                }
                 Instruction::GetIndex => self.instruction_get_index()?,
                 Instruction::SetIndex => self.instruction_set_index()?,
-                Instruction::JumpIf(destination) => {
-                    if self.pop().to_boolean() {
-                        next = *destination;
-                    }
-                }
-                Instruction::JumpUnless(destination) => {
-                    if !self.pop().to_boolean() {
-                        next = *destination;
-                    }
-                }
-                Instruction::Jump(destination) => next = *destination,
-                Instruction::Return => break,
                 Instruction::Echo => self.instruction_echo(),
             }
 
@@ -110,94 +111,87 @@ impl Interpreter {
         Ok(())
     }
 
-    fn push_frame(&mut self, frame: StackFrame) {
-        self.frames.push(frame);
-    }
-
-    fn pop_frame(&mut self) -> StackFrame {
-        let frame = self
-            .frames
-            .pop()
-            .expect("At least one stack frame must be left on the stack.");
-        // Remove all values allocated for the frame except the return value.
-        self.stack.resize(frame.position() + 1, Value::Null);
-        frame
-    }
-
-    fn frame(&self) -> &StackFrame {
-        self.frames.last().unwrap()
-    }
-
-    fn frame_mut(&mut self) -> &mut StackFrame {
-        self.frames.last_mut().unwrap()
-    }
-
-    fn instruction_declare_variable(
-        &mut self,
-        name: SharedImmutable<String>,
-    ) -> Result<(), InterpreterError> {
-        self.frame_mut().declare(name)
-    }
-
-    fn instruction_assign_variable(
-        &mut self,
-        name: SharedImmutable<String>,
-    ) -> Result<(), InterpreterError> {
-        let value = self.pop();
-        self.frame_mut().assign(name, value)
-    }
-
-    fn instruction_get_index(&mut self) -> Result<(), InterpreterError> {
-        let index = self.pop();
-        let target = self.pop();
-
-        self.push(match target {
-            Value::List(list) => list.borrow().get(index)?,
-            Value::Dict(dict) => dict.borrow().get(index),
-            _ => {
-                return Err(InterpreterError::InvalidIndexAccess {
-                    target_type: target.type_of(),
-                    index: index.to_string(),
-                })
-            }
-        });
-
-        Ok(())
-    }
-
-    fn instruction_set_index(&mut self) -> Result<(), InterpreterError> {
-        let value = self.pop();
-        let index = self.pop();
-        let target = self.pop();
-
-        match target {
-            Value::List(list) => list.borrow_mut().set(index, value)?,
-            Value::Dict(dict) => dict.borrow_mut().set(index, value),
-            _ => {
-                return Err(InterpreterError::InvalidIndexAssignment {
-                    target_type: target.type_of(),
-                    index: index.to_string(),
-                })
-            }
+    fn push(&mut self, value: Value) {
+        if DEBUG {
+            println!("DEBUG:   Push -> {:?}", value);
         }
 
-        Ok(())
+        self.stack.push(value);
+
+        if DEBUG {
+            println!("DEBUG:   Size -> {:?}", self.stack.len());
+        }
+    }
+
+    fn pop(&mut self) -> Value {
+        let result = self
+            .stack
+            .pop()
+            .unwrap_or_else(|| panic!("No values exist to be popped off the stack."));
+
+        if DEBUG {
+            println!("DEBUG:   Pop  -> {:?}", result);
+            println!("DEBUG:   TOS  -> {:?}", self.stack.last());
+            println!("DEBUG:   Size -> {:?}", self.stack.len());
+        }
+
+        result
+    }
+
+    fn top(&self) -> Value {
+        let result = self
+            .stack
+            .last()
+            .unwrap_or_else(|| panic!("No value at top of stack."));
+
+        if DEBUG {
+            println!("DEBUG:   TOS  -> {:?}", self.stack.last());
+            println!("DEBUG:   Size -> {:?}", self.stack.len());
+        }
+
+        result.clone()
+    }
+
+    fn push_call(&mut self, argument_count: usize) {
+        let position = self.stack.len();
+        let call = Call::new(position - argument_count);
+        self.calls.push(call);
+    }
+
+    fn pop_call(&mut self) -> Call {
+        let call = self.calls.pop().unwrap();
+        // Pop the result of the function call off the top of the stack.
+        let result = self.pop();
+        // Pop and discard all variables allocated for the function call.
+        while self.stack.len() > call.position() {
+            self.pop();
+        }
+
+        // Push the result back to the top of the stack.
+        self.push(result);
+        call
+    }
+
+    fn top_call(&self) -> &Call {
+        self.calls.last().unwrap()
+    }
+
+    fn get_variable(&self, address: usize) -> Value {
+        let position = self.top_call().position();
+        self.stack[position + address].clone()
+    }
+
+    fn set_variable(&mut self, address: usize, value: Value) {
+        let position = self.top_call().position();
+        self.stack[position + address] = value;
     }
 
     fn instruction_pop(&mut self) {
         self.pop();
     }
 
-    fn instruction_push_scope(&mut self) {
-        self.frame_mut().push_scope();
-    }
-
-    fn instruction_pop_scope(&mut self) {
-        self.frame_mut().pop_scope();
-    }
-
     fn instruction_duplicate(&mut self) {
-        let value = self.tos();
+        let value = self.top();
         self.push(value);
     }
 
@@ -205,10 +199,6 @@ impl Interpreter {
         for i in self.stack.len() - count..self.stack.len() {
             self.push(self.stack[i].clone());
         }
-    }
-
-    fn instruction_echo(&mut self) {
-        println!("{}", self.pop().to_string());
     }
 
     fn instruction_is_null(&mut self) {
@@ -235,12 +225,13 @@ impl Interpreter {
         self.push(Value::String(value));
     }
 
-    fn instruction_push_variable(
-        &mut self,
-        name: &SharedImmutable<String>,
-    ) -> Result<(), InterpreterError> {
-        self.push(self.var(name)?);
-        Ok(())
+    fn instruction_push_variable(&mut self, address: usize) {
+        self.push(self.get_variable(address));
+    }
+
+    fn instruction_assign_variable(&mut self, address: usize) {
+        let value = self.pop();
+        self.set_variable(address, value);
     }
 
     fn instruction_create_list(&mut self, size: usize) {
@@ -281,23 +272,9 @@ impl Interpreter {
             }
         };
 
-        let mut frame = StackFrame::new(self.stack.len() - argument_count);
-        if let Some(name) = function.name() {
-            frame.declare(name.clone())?;
-            frame.assign(name.clone(), Value::Function(function.clone()))?;
-        }
-
-        for parameter in function.parameters() {
-            frame.declare(parameter.clone())?
-        }
-
-        for parameter in function.parameters()[0..argument_count].iter() {
-            frame.assign(parameter.clone(), self.pop())?
-        }
-
-        self.push_frame(frame);
-        self.run_bytecode(function.bytecode())?;
-        self.pop_frame();
+        self.push_call(argument_count);
+        self.run_bytecode(function.bytecode(), argument_count)?;
+        self.pop_call();
 
         Ok(())
     }
@@ -368,127 +345,59 @@ impl Interpreter {
         }
     }
 
-    fn peek(&self) -> Option<&Value> {
-        self.stack.last()
+    fn instruction_get_index(&mut self) -> Result<(), InterpreterError> {
+        let index = self.pop();
+        let target = self.pop();
+        let value = match target {
+            Value::List(list) => list.borrow().get(index)?,
+            Value::Dict(dict) => dict.borrow().get(index),
+            _ => {
+                return Err(InterpreterError::InvalidIndexAccess {
+                    target_type: target.type_of(),
+                    index: index.to_string(),
+                })
+            }
+        };
+
+        self.push(value);
+        Ok(())
     }
 
-    fn push(&mut self, value: Value) {
-        if DEBUG {
-            println!("DEBUG:   Push -> {:?}", value);
+    fn instruction_set_index(&mut self) -> Result<(), InterpreterError> {
+        let value = self.pop();
+        let index = self.pop();
+        let target = self.pop();
+
+        match target {
+            Value::List(list) => list.borrow_mut().set(index, value)?,
+            Value::Dict(dict) => dict.borrow_mut().set(index, value),
+            _ => {
+                return Err(InterpreterError::InvalidIndexAssignment {
+                    target_type: target.type_of(),
+                    index: index.to_string(),
+                })
+            }
         }
 
-        self.stack.push(value);
-
-        if DEBUG {
-            println!("DEBUG:   Size -> {:?}", self.stack.len());
-        }
+        Ok(())
     }
 
-    fn pop(&mut self) -> Value {
-        let result = self
-            .stack
-            .pop()
-            .unwrap_or_else(|| panic!("No values exist to be popped off the stack."));
-
-        if DEBUG {
-            println!("DEBUG:   Pop  -> {:?}", result);
-            println!("DEBUG:   TOS  -> {:?}", self.peek());
-            println!("DEBUG:   Size -> {:?}", self.stack.len());
-        }
-
-        result
-    }
-
-    fn tos(&self) -> Value {
-        let result = self
-            .stack
-            .last()
-            .unwrap_or_else(|| panic!("No value at top of stack."));
-
-        if DEBUG {
-            println!("DEBUG:   TOS  -> {:?}", self.peek());
-            println!("DEBUG:   Size -> {:?}", self.stack.len());
-        }
-
-        result.clone()
-    }
-
-    fn var(&self, name: &SharedImmutable<String>) -> Result<Value, InterpreterError> {
-        let value = self.frame().get(name);
-        match value {
-            Some(value) => Ok(value.clone()),
-            None => Err(InterpreterError::UndefinedVariableAccess {
-                name: (**name).clone(),
-            }),
-        }
+    fn instruction_echo(&mut self) {
+        println!("{}", self.pop().to_string());
     }
 }
 
 #[derive(Debug)]
-struct StackFrame {
+struct Call {
     position: usize,
-    scopes: Vec<HashMap<SharedImmutable<String>, Value>>,
 }
 
-impl StackFrame {
+impl Call {
     fn new(position: usize) -> Self {
-        Self {
-            position,
-            scopes: vec![HashMap::new()],
-        }
+        Self { position }
     }
 
     pub fn position(&self) -> usize {
         self.position
-    }
-
-    pub fn push_scope(&mut self) {
-        self.scopes.push(HashMap::new());
-    }
-
-    pub fn pop_scope(&mut self) {
-        if self.scopes.len() == 1 {
-            panic!("Cannot pop, only one scope is present on the stack.");
-        }
-
-        self.scopes.pop();
-    }
-
-    pub fn get(&self, name: &SharedImmutable<String>) -> Option<&Value> {
-        for scope in self.scopes.iter().rev() {
-            if let Some(value) = scope.get(name) {
-                return Some(value);
-            }
-        }
-
-        None
-    }
-
-    pub fn assign(
-        &mut self,
-        name: SharedImmutable<String>,
-        value: Value,
-    ) -> Result<(), InterpreterError> {
-        for scope in self.scopes.iter_mut().rev() {
-            if scope.contains_key(&name) {
-                scope.insert(name, value);
-                return Ok(());
-            }
-        }
-
-        Err(InterpreterError::UndefinedVariableAssignment {
-            name: (*name).clone(),
-        })
-    }
-
-    pub fn declare(&mut self, name: SharedImmutable<String>) -> Result<(), InterpreterError> {
-        let scope = self.scopes.last_mut().unwrap();
-        if scope.insert(name.clone(), Value::Null).is_some() {
-            return Err(InterpreterError::VariableRedeclaration {
-                name: (*name).clone(),
-            });
-        }
-
-        Ok(())
     }
 }

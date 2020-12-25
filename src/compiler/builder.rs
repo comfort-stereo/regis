@@ -1,11 +1,16 @@
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
+
+use crate::shared::SharedImmutable;
 
 use super::bytecode::{Bytecode, Instruction, Marker};
+
+type Scope = HashMap<SharedImmutable<String>, usize>;
 
 #[derive(Debug)]
 pub struct Builder {
     bytecode: Bytecode,
     markers: BTreeMap<usize, HashSet<Marker>>,
+    scopes: Vec<Scope>,
 }
 
 impl Builder {
@@ -13,6 +18,7 @@ impl Builder {
         Self {
             bytecode: Bytecode::new(),
             markers: BTreeMap::new(),
+            scopes: vec![HashMap::new()],
         }
     }
 
@@ -35,6 +41,33 @@ impl Builder {
     pub fn blank(&mut self) -> usize {
         self.add(Instruction::Blank);
         self.last()
+    }
+
+    pub fn push_scope(&mut self) {
+        self.scopes.push(Scope::new());
+    }
+
+    pub fn pop_scope(&mut self) -> Scope {
+        self.scopes.pop().expect("There was no scope to pop.")
+    }
+
+    pub fn add_variable(&mut self, name: SharedImmutable<String>) -> usize {
+        let address = self.bytecode.add_variable();
+        self.scopes
+            .last_mut()
+            .expect("There was no scope to add a variable to.")
+            .insert(name.clone(), address);
+        address
+    }
+
+    pub fn get_variable_address(&self, name: &SharedImmutable<String>) -> usize {
+        for scope in self.scopes.iter().rev() {
+            if let Some(address) = scope.get(name) {
+                return *address;
+            }
+        }
+
+        panic!("No variable '{}' was found in scope.", name);
     }
 
     pub fn build(mut self) -> Bytecode {

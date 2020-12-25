@@ -9,9 +9,21 @@ pub enum Instruction {
     Pop,
     Duplicate,
     DuplicateTop(usize),
-    PushScope,
-    PopScope,
+    JumpIf(usize),
+    JumpUnless(usize),
+    Jump(usize),
+    Return,
     IsNull,
+    PushNull,
+    PushBoolean(bool),
+    PushNumber(f64),
+    PushString(SharedImmutable<String>),
+    PushVariable(usize),
+    AssignVariable(usize),
+    CreateList(usize),
+    CreateDict(usize),
+    CreateFunction(SharedImmutable<Function>),
+    Call(usize),
     BinaryAdd,
     BinaryDiv,
     BinaryMul,
@@ -25,21 +37,6 @@ pub enum Instruction {
     BinaryPush,
     GetIndex,
     SetIndex,
-    PushNull,
-    PushBoolean(bool),
-    PushNumber(f64),
-    PushString(SharedImmutable<String>),
-    CreateList(usize),
-    CreateDict(usize),
-    CreateFunction(SharedImmutable<Function>),
-    Call(usize),
-    PushVariable(SharedImmutable<String>),
-    DeclareVariable(SharedImmutable<String>),
-    AssignVariable(SharedImmutable<String>),
-    JumpIf(usize),
-    JumpUnless(usize),
-    Jump(usize),
-    Return,
     Echo,
 }
 
@@ -53,6 +50,7 @@ pub enum Marker {
 
 pub struct Bytecode {
     instructions: Vec<Instruction>,
+    variable_count: usize,
 }
 
 impl Debug for Bytecode {
@@ -68,6 +66,7 @@ impl Bytecode {
     pub fn new() -> Self {
         Self {
             instructions: Vec::new(),
+            variable_count: 0,
         }
     }
 
@@ -85,5 +84,15 @@ impl Bytecode {
 
     pub fn add(&mut self, instruction: Instruction) {
         self.instructions.push(instruction);
+    }
+
+    pub fn add_variable(&mut self) -> usize {
+        let count = self.variable_count;
+        self.variable_count += 1;
+        count
+    }
+
+    pub fn variable_count(&self) -> usize {
+        self.variable_count
     }
 }
