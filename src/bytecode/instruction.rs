@@ -21,7 +21,7 @@ pub enum Instruction {
     PushVariable(usize),
     AssignVariable(usize),
     CreateList(usize),
-    CreateDict(usize),
+    CreateObject(usize),
     CreateFunction(SharedImmutable<Procedure>),
     Call(usize),
     BinaryAdd,

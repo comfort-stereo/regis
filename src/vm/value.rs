@@ -3,9 +3,9 @@ use std::hash::{Hash, Hasher};
 
 use crate::shared::{SharedImmutable, SharedMutable};
 
-use super::dict::Dict;
 use super::function::Function;
 use super::list::List;
+use super::object::Object;
 
 #[derive(Debug)]
 pub enum Value {
@@ -15,7 +15,7 @@ pub enum Value {
     Float(f64),
     String(SharedImmutable<String>),
     List(SharedMutable<List>),
-    Dict(SharedMutable<Dict>),
+    Object(SharedMutable<Object>),
     Function(SharedImmutable<Function>),
 }
 
@@ -28,7 +28,7 @@ impl Clone for Value {
             Self::Float(value) => Self::Float(*value),
             Self::String(value) => Self::String(value.clone()),
             Self::List(value) => Self::List(value.clone()),
-            Self::Dict(value) => Self::Dict(value.clone()),
+            Self::Object(value) => Self::Object(value.clone()),
             Self::Function(value) => Self::Function(value.clone()),
         }
     }
@@ -45,7 +45,7 @@ impl PartialEq for Value {
             (Self::Float(left), Self::Integer(right)) => *left == (*right as f64),
             (Self::String(left), Self::String(right)) => *left == *right,
             (Self::List(left), Self::List(right)) => left == right,
-            (Self::Dict(left), Self::Dict(right)) => left == right,
+            (Self::Object(left), Self::Object(right)) => left == right,
             (Self::Function(left), Self::Function(right)) => left == right,
             _ => false,
         }
@@ -63,7 +63,7 @@ impl Hash for Value {
             Self::Float(value) => (*value as i64).hash(state),
             Self::String(value) => value.hash(state),
             Self::List(value) => value.hash(state),
-            Self::Dict(value) => value.hash(state),
+            Self::Object(value) => value.hash(state),
             Self::Function(value) => value.hash(state),
         };
     }
@@ -78,7 +78,7 @@ impl Value {
             Self::Float(..) => ValueType::Float,
             Self::String(..) => ValueType::String,
             Self::List(value) => value.borrow().type_of(),
-            Self::Dict(value) => value.borrow().type_of(),
+            Self::Object(value) => value.borrow().type_of(),
             Self::Function(value) => value.type_of(),
         }
     }
@@ -91,7 +91,7 @@ impl Value {
             Self::Float(value) => *value != 0.0,
             Self::String(..) => true,
             Self::List(value) => value.borrow().to_boolean(),
-            Self::Dict(value) => value.borrow().to_boolean(),
+            Self::Object(value) => value.borrow().to_boolean(),
             Self::Function(value) => value.to_boolean(),
         }
     }
@@ -104,7 +104,7 @@ impl Value {
             Self::Float(value) => value.to_string(),
             Self::String(value) => (**value).clone(),
             Self::List(value) => value.borrow().to_string(),
-            Self::Dict(value) => value.borrow().to_string(),
+            Self::Object(value) => value.borrow().to_string(),
             Self::Function(value) => value.to_string(),
         }
     }
@@ -118,7 +118,7 @@ pub enum ValueType {
     Float,
     String,
     List,
-    Dict,
+    Object,
     Function,
 }
 
@@ -131,7 +131,7 @@ impl Display for ValueType {
             Self::Float => write!(formatter, "float"),
             Self::String => write!(formatter, "string"),
             Self::List => write!(formatter, "list"),
-            Self::Dict => write!(formatter, "dict"),
+            Self::Object => write!(formatter, "object"),
             Self::Function => write!(formatter, "function"),
         }
     }

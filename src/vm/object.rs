@@ -7,26 +7,26 @@ use super::rid::rid;
 use super::value::{Value, ValueType};
 
 #[derive(Debug)]
-pub struct Dict {
+pub struct Object {
     id: usize,
     inner: IndexMap<Value, Value>,
 }
 
-impl PartialEq for Dict {
+impl PartialEq for Object {
     fn eq(&self, other: &Self) -> bool {
         self.id == other.id
     }
 }
 
-impl Eq for Dict {}
+impl Eq for Object {}
 
-impl Hash for Dict {
+impl Hash for Object {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.id.hash(state)
     }
 }
 
-impl Dict {
+impl Object {
     pub fn new() -> Self {
         Self {
             id: rid(),
@@ -35,7 +35,7 @@ impl Dict {
     }
 
     pub fn type_of(&self) -> ValueType {
-        ValueType::Dict
+        ValueType::Object
     }
 
     pub fn to_boolean(&self) -> bool {

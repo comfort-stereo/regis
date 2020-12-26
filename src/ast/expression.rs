@@ -18,7 +18,7 @@ pub enum AstExpressionVariant {
     String(Box<AstString>),
     Identifier(Box<AstIdentifier>),
     List(Box<AstList>),
-    Dict(Box<AstDict>),
+    Object(Box<AstObject>),
     Function(Box<AstFunction>),
     Lambda(Box<AstLambda>),
     Wrapped(Box<AstWrapped>),
@@ -36,7 +36,7 @@ impl AstExpressionVariant {
             GrammarRule::string => Self::String(AstString::parse(pair, context).into()),
             GrammarRule::identifier => Self::Identifier(AstIdentifier::parse(pair, context).into()),
             GrammarRule::list => Self::List(AstList::parse(pair, context).into()),
-            GrammarRule::dict => Self::Dict(AstDict::parse(pair, context).into()),
+            GrammarRule::object => Self::Object(AstObject::parse(pair, context).into()),
             GrammarRule::function => Self::Function(AstFunction::parse(pair, context).into()),
             GrammarRule::lambda => Self::Lambda(AstLambda::parse(pair, context).into()),
             GrammarRule::wrapped => Self::Wrapped(AstWrapped::parse(pair, context).into()),
@@ -184,14 +184,14 @@ impl AstList {
 }
 
 #[derive(Debug)]
-pub struct AstDict {
+pub struct AstObject {
     pub info: AstNodeInfo,
     pub pairs: Vec<AstPair>,
 }
 
-impl AstDict {
+impl AstObject {
     fn parse(pair: GrammarPair, context: &ParseContext) -> Self {
-        assert_eq!(pair.as_rule(), GrammarRule::dict);
+        assert_eq!(pair.as_rule(), GrammarRule::object);
         let (info, inner) = extract(pair);
         Self {
             info,

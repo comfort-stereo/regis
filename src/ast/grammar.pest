@@ -40,7 +40,7 @@ null = @{ keyword_null }
 identifier = @{ !keyword ~ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
 boolean = @{ keyword_true | keyword_false }
 integer = @{ "-"? ~ ("0" | ASCII_NONZERO_DIGIT ~ ASCII_DIGIT*) }
-float = @{ integer ~ ("." ~ ASCII_DIGIT+)? }
+float = @{ integer ~ "." ~ ASCII_DIGIT+ }
 
 string = ${ "\"" ~ chars ~ "\"" }
 chars = @{ char* }
@@ -61,7 +61,7 @@ atom = _{
 
 wrapped = { "(" ~ br? ~ expression ~ br? ~ ")" }
 list = { "[" ~ br? ~ (expression ~ br? ~ "," ~ br?)* ~ expression? ~ br? ~ "]" }
-dict = { "{" ~ br? ~ (pair ~ br? ~ "," ~ br?)* ~ pair? ~ br? ~ "}" }
+object = { "{" ~ br? ~ (pair ~ br? ~ "," ~ br?)* ~ pair? ~ br? ~ "}" }
 pair = { key ~ br? ~ ":" ~ br? ~ expression }
 key = _{ identifier | string | key_expression }
 key_expression = { "[" ~ br? ~ expression ~ br? ~ "]" }
@@ -140,7 +140,7 @@ binary_operable_expression = _{
     | function
     | lambda
     | list
-    | dict
+    | object
     | atom
 }
 
@@ -149,7 +149,7 @@ chainable_expression = _{
     | function
     | lambda
     | list
-    | dict
+    | object
     | atom
 }
 
@@ -160,7 +160,7 @@ expression = _{
     | function
     | lambda
     | list
-    | dict
+    | object
     | atom
 }
 

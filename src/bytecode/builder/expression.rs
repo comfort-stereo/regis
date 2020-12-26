@@ -1,8 +1,7 @@
 use crate::ast::expression::{
-    AstBinaryOperation, AstBoolean, AstCall, AstChainVariant, AstDict, AstDot,
-    AstExpressionVariant, AstFloat, AstFunction, AstIdentifier, AstIndex, AstInteger,
-    AstKeyExpression, AstKeyVariant, AstLambda, AstLambdaBodyVariant, AstList, AstNull, AstPair,
-    AstString, AstWrapped,
+    AstBinaryOperation, AstBoolean, AstCall, AstChainVariant, AstDot, AstExpressionVariant,
+    AstFloat, AstFunction, AstIdentifier, AstIndex, AstInteger, AstKeyExpression, AstKeyVariant,
+    AstLambda, AstLambdaBodyVariant, AstList, AstNull, AstObject, AstPair, AstString, AstWrapped,
 };
 use crate::ast::operator::BinaryOperator;
 
@@ -20,7 +19,7 @@ impl Builder {
             AstExpressionVariant::String(string) => self.emit_string(string),
             AstExpressionVariant::Identifier(identifier) => self.emit_identifier(identifier),
             AstExpressionVariant::List(list) => self.emit_list(list),
-            AstExpressionVariant::Dict(dict) => self.emit_dict(dict),
+            AstExpressionVariant::Object(object) => self.emit_object(object),
             AstExpressionVariant::Function(function) => self.emit_function(function),
             AstExpressionVariant::Lambda(lambda) => self.emit_lambda(lambda),
             AstExpressionVariant::Wrapped(wrapped) => self.emit_wrapped(wrapped),
@@ -63,7 +62,7 @@ impl Builder {
         self.add(Instruction::CreateList(values.len()));
     }
 
-    pub fn emit_dict(&mut self, AstDict { pairs, .. }: &AstDict) {
+    pub fn emit_object(&mut self, AstObject { pairs, .. }: &AstObject) {
         for AstPair { key, value, .. } in pairs.iter().rev() {
             match key {
                 AstKeyVariant::Identifier(AstIdentifier { name, .. }) => {
@@ -80,7 +79,7 @@ impl Builder {
             self.emit_expression(value);
         }
 
-        self.add(Instruction::CreateDict(pairs.len()));
+        self.add(Instruction::CreateObject(pairs.len()));
     }
 
     pub fn emit_function(

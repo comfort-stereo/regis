@@ -1,10 +1,10 @@
 use crate::bytecode::{Bytecode, Instruction, Procedure};
 use crate::shared::SharedImmutable;
 
-use super::dict::Dict;
 use super::error::VmError;
 use super::function::Function;
 use super::list::List;
+use super::object::Object;
 use super::value::Value;
 use super::VmErrorVariant;
 
@@ -78,7 +78,7 @@ impl Vm {
                 Instruction::PushVariable(address) => self.instruction_push_variable(*address),
                 Instruction::AssignVariable(address) => self.instruction_assign_variable(*address),
                 Instruction::CreateList(size) => self.instruction_create_list(*size),
-                Instruction::CreateDict(size) => self.instruction_create_dict(*size),
+                Instruction::CreateObject(size) => self.instruction_create_object(*size),
                 Instruction::CreateFunction(function) => {
                     self.instruction_create_function(function.clone())
                 }
@@ -258,16 +258,16 @@ impl Vm {
         self.push(Value::List(list.into()));
     }
 
-    fn instruction_create_dict(&mut self, size: usize) {
-        let mut dict = Dict::new();
-        dict.reserve(size);
+    fn instruction_create_object(&mut self, size: usize) {
+        let mut object = Object::new();
+        object.reserve(size);
         for _ in 0..size {
             let key = self.pop();
             let value = self.pop();
-            dict.set(value.clone(), key.clone());
+            object.set(value.clone(), key.clone());
         }
 
-        self.push(Value::Dict(dict.into()));
+        self.push(Value::Object(object.into()));
     }
 
     fn instruction_create_function(&mut self, procedure: SharedImmutable<Procedure>) {
@@ -356,8 +356,8 @@ impl Vm {
                 }
                 _ => None,
             },
-            (Value::Dict(left), Value::Dict(right)) => match instruction {
-                Instruction::BinaryAdd => Some(Value::Dict(left.borrow().concat(&right))),
+            (Value::Object(left), Value::Object(right)) => match instruction {
+                Instruction::BinaryAdd => Some(Value::Object(left.borrow().concat(&right))),
                 _ => None,
             },
             (Value::String(left), right) => match instruction {
@@ -400,7 +400,7 @@ impl Vm {
         let target = self.pop();
         let value = match target {
             Value::List(list) => list.borrow().get(index)?,
-            Value::Dict(dict) => dict.borrow().get(index),
+            Value::Object(object) => object.borrow().get(index),
             _ => {
                 return Err(VmError::new(
                     None,
@@ -422,7 +422,7 @@ impl Vm {
 
         match target {
             Value::List(list) => list.borrow_mut().set(index, value)?,
-            Value::Dict(dict) => dict.borrow_mut().set(index, value),
+            Value::Object(object) => object.borrow_mut().set(index, value),
             _ => {
                 return Err(VmError::new(
                     None,
