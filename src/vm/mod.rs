@@ -7,7 +7,7 @@ mod value;
 mod vm;
 
 pub use dict::Dict;
-pub use error::VmError;
+pub use error::{VmError, VmErrorVariant};
 pub use function::Function;
 pub use list::List;
 pub use value::{Value, ValueType};

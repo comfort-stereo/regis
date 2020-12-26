@@ -2,9 +2,9 @@ use super::base::AstBlock;
 use super::expression::{
     AstChainVariant, AstDot, AstExpressionVariant, AstFunction, AstIdentifier, AstIndex,
 };
+use super::grammar::{inner, GrammarPair, GrammarRule, ParseContext};
 use super::node::AstNodeInfo;
 use super::operator::AssignmentOperator;
-use super::parser::{inner, ParseContext, ParsePair, ParseRule};
 
 #[derive(Debug)]
 pub enum AstStatementVariant {
@@ -24,45 +24,45 @@ pub enum AstStatementVariant {
 }
 
 impl AstStatementVariant {
-    pub fn parse(pair: ParsePair, context: &ParseContext) -> Self {
+    pub fn parse(pair: GrammarPair, context: &ParseContext) -> Self {
         match pair.as_rule() {
-            ParseRule::if_statement => {
+            GrammarRule::if_statement => {
                 Self::IfStatement(AstIfStatement::parse(pair, context).into())
             }
-            ParseRule::else_statement => {
+            GrammarRule::else_statement => {
                 Self::ElseStatement(AstElseStatement::parse(pair, context).into())
             }
-            ParseRule::loop_statement => {
+            GrammarRule::loop_statement => {
                 Self::LoopStatement(AstLoopStatement::parse(pair, context).into())
             }
-            ParseRule::while_statement => {
+            GrammarRule::while_statement => {
                 Self::WhileStatement(AstWhileStatement::parse(pair, context).into())
             }
-            ParseRule::return_statement => {
+            GrammarRule::return_statement => {
                 Self::ReturnStatement(AstReturnStatement::parse(pair, context).into())
             }
-            ParseRule::break_statement => {
+            GrammarRule::break_statement => {
                 Self::BreakStatement(AstBreakStatement::parse(pair, context).into())
             }
-            ParseRule::continue_statement => {
+            GrammarRule::continue_statement => {
                 Self::ContinueStatement(AstContinueStatement::parse(pair, context).into())
             }
-            ParseRule::echo_statement => {
+            GrammarRule::echo_statement => {
                 Self::EchoStatement(AstEchoStatement::parse(pair, context).into())
             }
-            ParseRule::function_statement => {
+            GrammarRule::function_statement => {
                 Self::FunctionStatement(AstFunctionStatement::parse(pair, context).into())
             }
-            ParseRule::variable_declaration_statement => Self::VariableDeclarationStatement(
+            GrammarRule::variable_declaration_statement => Self::VariableDeclarationStatement(
                 AstVariableDeclarationStatement::parse(pair, context).into(),
             ),
-            ParseRule::variable_assignment_statement => Self::VariableAssignmentStatement(
+            GrammarRule::variable_assignment_statement => Self::VariableAssignmentStatement(
                 AstVariableAssignmentStatement::parse(pair, context).into(),
             ),
-            ParseRule::chain_assignment_statement => Self::AstChainAssignmentStatement(
+            GrammarRule::chain_assignment_statement => Self::AstChainAssignmentStatement(
                 AstChainAssignmentStatementVariant::parse(pair, context).into(),
             ),
-            ParseRule::expression_statement => {
+            GrammarRule::expression_statement => {
                 Self::ExpressionStatement(AstExpressionStatement::parse(pair, context).into())
             }
             _ => unreachable!(),
@@ -78,8 +78,8 @@ pub struct AstIfStatement {
 }
 
 impl AstIfStatement {
-    pub fn parse(pair: ParsePair, context: &ParseContext) -> Self {
-        assert_eq!(pair.as_rule(), ParseRule::if_statement);
+    pub fn parse(pair: GrammarPair, context: &ParseContext) -> Self {
+        assert_eq!(pair.as_rule(), GrammarRule::if_statement);
         let (info, mut inner) = inner(pair);
         Self {
             info,
@@ -105,19 +105,19 @@ pub enum AstElseStatementNextVariant {
 }
 
 impl AstElseStatementNextVariant {
-    pub fn parse(pair: ParsePair, context: &ParseContext) -> Self {
+    pub fn parse(pair: GrammarPair, context: &ParseContext) -> Self {
         match pair.as_rule() {
-            ParseRule::if_statement => {
+            GrammarRule::if_statement => {
                 Self::IfStatement(AstIfStatement::parse(pair, context).into())
             }
-            ParseRule::block => Self::Block(AstBlock::parse(pair, context).into()),
+            GrammarRule::block => Self::Block(AstBlock::parse(pair, context).into()),
             _ => unreachable!(),
         }
     }
 }
 
 impl AstElseStatement {
-    pub fn parse(pair: ParsePair, context: &ParseContext) -> Self {
+    pub fn parse(pair: GrammarPair, context: &ParseContext) -> Self {
         let (info, mut inner) = inner(pair);
         Self {
             info,
@@ -135,8 +135,8 @@ pub struct AstLoopStatement {
 }
 
 impl AstLoopStatement {
-    pub fn parse(pair: ParsePair, context: &ParseContext) -> Self {
-        assert_eq!(pair.as_rule(), ParseRule::loop_statement);
+    pub fn parse(pair: GrammarPair, context: &ParseContext) -> Self {
+        assert_eq!(pair.as_rule(), GrammarRule::loop_statement);
         let (info, mut inner) = inner(pair);
         Self {
             info,
@@ -153,8 +153,8 @@ pub struct AstWhileStatement {
 }
 
 impl AstWhileStatement {
-    pub fn parse(pair: ParsePair, context: &ParseContext) -> Self {
-        assert_eq!(pair.as_rule(), ParseRule::while_statement);
+    pub fn parse(pair: GrammarPair, context: &ParseContext) -> Self {
+        assert_eq!(pair.as_rule(), GrammarRule::while_statement);
         let (info, mut inner) = inner(pair);
         Self {
             info,
@@ -171,8 +171,8 @@ pub struct AstReturnStatement {
 }
 
 impl AstReturnStatement {
-    pub fn parse(pair: ParsePair, context: &ParseContext) -> Self {
-        assert_eq!(pair.as_rule(), ParseRule::return_statement);
+    pub fn parse(pair: GrammarPair, context: &ParseContext) -> Self {
+        assert_eq!(pair.as_rule(), GrammarRule::return_statement);
         let (info, mut inner) = inner(pair);
         Self {
             info,
@@ -189,8 +189,8 @@ pub struct AstBreakStatement {
 }
 
 impl AstBreakStatement {
-    pub fn parse(pair: ParsePair, _: &ParseContext) -> Self {
-        assert_eq!(pair.as_rule(), ParseRule::break_statement);
+    pub fn parse(pair: GrammarPair, _: &ParseContext) -> Self {
+        assert_eq!(pair.as_rule(), GrammarRule::break_statement);
         Self {
             info: AstNodeInfo::new(&pair),
         }
@@ -203,8 +203,8 @@ pub struct AstContinueStatement {
 }
 
 impl AstContinueStatement {
-    pub fn parse(pair: ParsePair, _: &ParseContext) -> Self {
-        assert_eq!(pair.as_rule(), ParseRule::continue_statement);
+    pub fn parse(pair: GrammarPair, _: &ParseContext) -> Self {
+        assert_eq!(pair.as_rule(), GrammarRule::continue_statement);
         Self {
             info: AstNodeInfo::new(&pair),
         }
@@ -218,8 +218,8 @@ pub struct AstEchoStatement {
 }
 
 impl AstEchoStatement {
-    pub fn parse(pair: ParsePair, context: &ParseContext) -> Self {
-        assert_eq!(pair.as_rule(), ParseRule::echo_statement);
+    pub fn parse(pair: GrammarPair, context: &ParseContext) -> Self {
+        assert_eq!(pair.as_rule(), GrammarRule::echo_statement);
         let (info, mut inner) = inner(pair);
         Self {
             info,
@@ -234,8 +234,8 @@ pub struct AstFunctionStatement {
 }
 
 impl AstFunctionStatement {
-    pub fn parse(pair: ParsePair, context: &ParseContext) -> Self {
-        assert_eq!(pair.as_rule(), ParseRule::function_statement);
+    pub fn parse(pair: GrammarPair, context: &ParseContext) -> Self {
+        assert_eq!(pair.as_rule(), GrammarRule::function_statement);
         let (info, mut inner) = inner(pair);
         Self {
             info,
@@ -252,8 +252,8 @@ pub struct AstVariableDeclarationStatement {
 }
 
 impl AstVariableDeclarationStatement {
-    pub fn parse(pair: ParsePair, context: &ParseContext) -> Self {
-        assert_eq!(pair.as_rule(), ParseRule::variable_declaration_statement);
+    pub fn parse(pair: GrammarPair, context: &ParseContext) -> Self {
+        assert_eq!(pair.as_rule(), GrammarRule::variable_declaration_statement);
         let (info, mut inner) = inner(pair);
         Self {
             info,
@@ -272,8 +272,8 @@ pub struct AstVariableAssignmentStatement {
 }
 
 impl AstVariableAssignmentStatement {
-    pub fn parse(pair: ParsePair, context: &ParseContext) -> Self {
-        assert_eq!(pair.as_rule(), ParseRule::variable_assignment_statement);
+    pub fn parse(pair: GrammarPair, context: &ParseContext) -> Self {
+        assert_eq!(pair.as_rule(), GrammarRule::variable_assignment_statement);
         let (info, mut inner) = inner(pair);
         Self {
             info,
@@ -291,8 +291,8 @@ pub enum AstChainAssignmentStatementVariant {
 }
 
 impl AstChainAssignmentStatementVariant {
-    pub fn parse(pair: ParsePair, context: &ParseContext) -> Self {
-        assert_eq!(pair.as_rule(), ParseRule::chain_assignment_statement);
+    pub fn parse(pair: GrammarPair, context: &ParseContext) -> Self {
+        assert_eq!(pair.as_rule(), GrammarRule::chain_assignment_statement);
         let (info, mut inner) = inner(pair);
 
         let target = AstChainVariant::parse(inner.next().unwrap(), context);
@@ -347,7 +347,7 @@ pub struct AstExpressionStatement {
 }
 
 impl AstExpressionStatement {
-    pub fn parse(pair: ParsePair, context: &ParseContext) -> Self {
+    pub fn parse(pair: GrammarPair, context: &ParseContext) -> Self {
         let (info, mut inner) = inner(pair);
         Self {
             info,

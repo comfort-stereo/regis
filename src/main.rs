@@ -26,16 +26,16 @@ fn main() {
         println!("ERROR: Path does not exist.");
         process::exit(2);
     });
-    let code = fs::read_to_string(path).unwrap_or_else(|_| {
+    let source = fs::read_to_string(path).unwrap_or_else(|_| {
         println!("ERROR: Cannot read file as text.");
         process::exit(3);
     });
 
     let mut interpreter = Interpreter::new();
-    match interpreter.run_module(&code) {
+    match interpreter.run_module(&source) {
         Ok(()) => {}
         Err(error) => {
-            println!("{}", error);
+            println!("{}", error.display(&source));
         }
     }
 }

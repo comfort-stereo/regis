@@ -6,6 +6,7 @@ use super::error::VmError;
 use super::function::Function;
 use super::list::List;
 use super::value::Value;
+use super::VmErrorVariant;
 
 static DEBUG: bool = false;
 
@@ -19,7 +20,7 @@ impl Vm {
     pub fn new() -> Self {
         Self {
             stack: Vec::new(),
-            calls: vec![Call::new(0)],
+            calls: Vec::new(),
         }
     }
 
@@ -38,15 +39,17 @@ impl Vm {
             self.push(Value::Null);
         }
 
-        let mut line = 0;
-        let end = bytecode.len();
+        let mut position = 0;
+        let end = bytecode.size();
 
-        while line < end {
-            let instruction = bytecode.get(line);
-            let mut next = line + 1;
+        while position < end {
+            let instruction = bytecode
+                .get(position)
+                .expect("Undefined bytecode position reached.");
+            let mut next = position + 1;
 
             if DEBUG {
-                println!("DEBUG: {} -> {:?}:", line, instruction);
+                println!("DEBUG: {} -> {:?}:", position, instruction);
             }
 
             match instruction {
@@ -95,10 +98,32 @@ impl Vm {
                 Instruction::Echo => self.instruction_echo(),
             }
 
-            line = next;
+            position = next;
         }
 
         Ok(())
+    }
+
+    fn size(&self) -> usize {
+        self.stack.len()
+    }
+
+    fn get(&self, position: usize) -> Value {
+        self.stack[position].clone()
+    }
+
+    fn set(&mut self, position: usize, value: Value) {
+        self.stack[position] = value;
+    }
+
+    fn get_variable(&self, address: usize) -> Value {
+        let position = self.top_call_position();
+        self.get(position + address).clone()
+    }
+
+    fn set_variable(&mut self, address: usize, value: Value) {
+        let position = self.top_call_position();
+        self.set(position + address, value);
     }
 
     fn push(&mut self, value: Value) {
@@ -142,9 +167,9 @@ impl Vm {
         result.clone()
     }
 
-    fn push_call(&mut self, argument_count: usize) {
-        let position = self.stack.len();
-        let call = Call::new(position - argument_count);
+    fn push_call(&mut self, function: SharedImmutable<Function>, argument_count: usize) {
+        let position = self.size();
+        let call = Call::new(function, position - argument_count);
         self.calls.push(call);
     }
 
@@ -162,18 +187,12 @@ impl Vm {
         call
     }
 
-    fn top_call(&self) -> &Call {
-        self.calls.last().unwrap()
+    fn top_call(&self) -> Option<&Call> {
+        self.calls.last()
     }
 
-    fn get_variable(&self, address: usize) -> Value {
-        let position = self.top_call().position();
-        self.stack[position + address].clone()
-    }
-
-    fn set_variable(&mut self, address: usize, value: Value) {
-        let position = self.top_call().position();
-        self.stack[position + address] = value;
+    fn top_call_position(&self) -> usize {
+        self.top_call().map_or(0, |call| call.position())
     }
 
     fn instruction_pop(&mut self) {
@@ -186,7 +205,7 @@ impl Vm {
     }
 
     fn instruction_duplicate_top(&mut self, count: usize) {
-        for i in self.stack.len() - count..self.stack.len() {
+        for i in self.size() - count..self.size() {
             self.push(self.stack[i].clone());
         }
     }
@@ -255,14 +274,17 @@ impl Vm {
         let function = match target {
             Value::Function(function) => function,
             _ => {
-                return Err(VmError::UndefinedUnaryOperation {
-                    operation: format!("{:?}", Instruction::Call(argument_count)),
-                    target_type: target.type_of(),
-                })
+                return Err(VmError::new(
+                    None,
+                    VmErrorVariant::UndefinedUnaryOperation {
+                        operation: format!("{:?}", Instruction::Call(argument_count)),
+                        target_type: target.type_of(),
+                    },
+                ));
             }
         };
 
-        self.push_call(argument_count);
+        self.push_call(function.clone(), argument_count);
         self.run_with_arguments(function.bytecode(), argument_count)?;
         self.pop_call();
 
@@ -324,11 +346,14 @@ impl Vm {
             self.push(result);
             Ok(())
         } else {
-            Err(VmError::UndefinedBinaryOperation {
-                operation: format!("{:?}", instruction),
-                target_type: left.type_of(),
-                other_type: right.type_of(),
-            })
+            Err(VmError::new(
+                None,
+                VmErrorVariant::UndefinedBinaryOperation {
+                    operation: format!("{:?}", instruction),
+                    target_type: left.type_of(),
+                    other_type: right.type_of(),
+                },
+            ))
         }
     }
 
@@ -339,10 +364,13 @@ impl Vm {
             Value::List(list) => list.borrow().get(index)?,
             Value::Dict(dict) => dict.borrow().get(index),
             _ => {
-                return Err(VmError::InvalidIndexAccess {
-                    target_type: target.type_of(),
-                    index: index.to_string(),
-                })
+                return Err(VmError::new(
+                    None,
+                    VmErrorVariant::InvalidIndexAccess {
+                        target_type: target.type_of(),
+                        index: index.to_string(),
+                    },
+                ));
             }
         };
 
@@ -359,10 +387,13 @@ impl Vm {
             Value::List(list) => list.borrow_mut().set(index, value)?,
             Value::Dict(dict) => dict.borrow_mut().set(index, value),
             _ => {
-                return Err(VmError::InvalidIndexAssignment {
-                    target_type: target.type_of(),
-                    index: index.to_string(),
-                })
+                return Err(VmError::new(
+                    None,
+                    VmErrorVariant::InvalidIndexAssignment {
+                        target_type: target.type_of(),
+                        index: index.to_string(),
+                    },
+                ));
             }
         }
 
@@ -376,15 +407,20 @@ impl Vm {
 
 #[derive(Debug)]
 struct Call {
+    function: SharedImmutable<Function>,
     position: usize,
 }
 
 impl Call {
-    fn new(position: usize) -> Self {
-        Self { position }
+    fn new(function: SharedImmutable<Function>, position: usize) -> Self {
+        Self { function, position }
     }
 
     pub fn position(&self) -> usize {
         self.position
     }
+
+    // pub fn function(&self) -> &SharedImmutable<Function> {
+    //     &self.function
+    // }
 }

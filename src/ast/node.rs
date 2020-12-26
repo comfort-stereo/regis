@@ -1,6 +1,6 @@
 use uuid::Uuid;
 
-use super::parser::ParsePair;
+use super::grammar::GrammarPair;
 
 #[derive(Debug)]
 pub struct AstNodeInfo {
@@ -10,7 +10,7 @@ pub struct AstNodeInfo {
 }
 
 impl AstNodeInfo {
-    pub fn new(pair: &ParsePair) -> Self {
+    pub fn new(pair: &GrammarPair) -> Self {
         Self {
             id: Uuid::new_v4(),
             start: pair.as_span().start(),

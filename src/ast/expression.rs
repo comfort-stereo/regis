@@ -1,11 +1,12 @@
 use crate::shared::SharedImmutable;
 
 use super::base::AstBlock;
+use super::grammar::{
+    content, inner, GrammarAssoc, GrammarOperator, GrammarPair, GrammarPrecClimber, GrammarRule,
+    ParseContext,
+};
 use super::node::AstNodeInfo;
 use super::operator::BinaryOperator;
-use super::parser::{
-    content, inner, ParseAssoc, ParseContext, ParseOperator, ParsePair, ParsePrecClimber, ParseRule,
-};
 use super::unescape::unescape;
 
 #[derive(Debug)]
@@ -25,20 +26,20 @@ pub enum AstExpressionVariant {
 }
 
 impl AstExpressionVariant {
-    pub fn parse(pair: ParsePair, context: &ParseContext) -> Self {
+    pub fn parse(pair: GrammarPair, context: &ParseContext) -> Self {
         match pair.as_rule() {
-            ParseRule::null => Self::Null(AstNull::parse(pair, context).into()),
-            ParseRule::boolean => Self::Boolean(AstBoolean::parse(pair, context).into()),
-            ParseRule::number => Self::Number(AstNumber::parse(pair, context).into()),
-            ParseRule::string => Self::String(AstString::parse(pair, context).into()),
-            ParseRule::identifier => Self::Identifier(AstIdentifier::parse(pair, context).into()),
-            ParseRule::list => Self::List(AstList::parse(pair, context).into()),
-            ParseRule::dict => Self::Dict(AstDict::parse(pair, context).into()),
-            ParseRule::function => Self::Function(AstFunction::parse(pair, context).into()),
-            ParseRule::lambda => Self::Lambda(AstLambda::parse(pair, context).into()),
-            ParseRule::wrapped => Self::Wrapped(AstWrapped::parse(pair, context).into()),
-            ParseRule::chain => Self::Chain(AstChainVariant::parse(pair, context).into()),
-            ParseRule::binary_operations => {
+            GrammarRule::null => Self::Null(AstNull::parse(pair, context).into()),
+            GrammarRule::boolean => Self::Boolean(AstBoolean::parse(pair, context).into()),
+            GrammarRule::number => Self::Number(AstNumber::parse(pair, context).into()),
+            GrammarRule::string => Self::String(AstString::parse(pair, context).into()),
+            GrammarRule::identifier => Self::Identifier(AstIdentifier::parse(pair, context).into()),
+            GrammarRule::list => Self::List(AstList::parse(pair, context).into()),
+            GrammarRule::dict => Self::Dict(AstDict::parse(pair, context).into()),
+            GrammarRule::function => Self::Function(AstFunction::parse(pair, context).into()),
+            GrammarRule::lambda => Self::Lambda(AstLambda::parse(pair, context).into()),
+            GrammarRule::wrapped => Self::Wrapped(AstWrapped::parse(pair, context).into()),
+            GrammarRule::chain => Self::Chain(AstChainVariant::parse(pair, context).into()),
+            GrammarRule::binary_operations => {
                 Self::BinaryOperation(AstBinaryOperation::parse(pair, context).into())
             }
             _ => unreachable!(),
@@ -47,20 +48,20 @@ impl AstExpressionVariant {
 }
 
 lazy_static! {
-    static ref CLIMBER: ParsePrecClimber = {
-        let op = |rule: ParseRule| ParseOperator::new(rule, ParseAssoc::Left);
-        ParsePrecClimber::new(vec![
-            op(ParseRule::operator_binary_push),
-            op(ParseRule::operator_binary_or),
-            op(ParseRule::operator_binary_and),
-            op(ParseRule::operator_binary_eq) | op(ParseRule::operator_binary_neq),
-            op(ParseRule::operator_binary_gt)
-                | op(ParseRule::operator_binary_lt)
-                | op(ParseRule::operator_binary_gte)
-                | op(ParseRule::operator_binary_lte),
-            op(ParseRule::operator_binary_add) | op(ParseRule::operator_binary_sub),
-            op(ParseRule::operator_binary_mul) | op(ParseRule::operator_binary_div),
-            op(ParseRule::operator_binary_ncl),
+    static ref CLIMBER: GrammarPrecClimber = {
+        let op = |rule: GrammarRule| GrammarOperator::new(rule, GrammarAssoc::Left);
+        GrammarPrecClimber::new(vec![
+            op(GrammarRule::operator_binary_push),
+            op(GrammarRule::operator_binary_or),
+            op(GrammarRule::operator_binary_and),
+            op(GrammarRule::operator_binary_eq) | op(GrammarRule::operator_binary_neq),
+            op(GrammarRule::operator_binary_gt)
+                | op(GrammarRule::operator_binary_lt)
+                | op(GrammarRule::operator_binary_gte)
+                | op(GrammarRule::operator_binary_lte),
+            op(GrammarRule::operator_binary_add) | op(GrammarRule::operator_binary_sub),
+            op(GrammarRule::operator_binary_mul) | op(GrammarRule::operator_binary_div),
+            op(GrammarRule::operator_binary_ncl),
         ])
     };
 }
@@ -70,8 +71,8 @@ pub struct AstNull {
 }
 
 impl AstNull {
-    fn parse(pair: ParsePair, _: &ParseContext) -> Self {
-        assert_eq!(pair.as_rule(), ParseRule::null);
+    fn parse(pair: GrammarPair, _: &ParseContext) -> Self {
+        assert_eq!(pair.as_rule(), GrammarRule::null);
         Self {
             info: AstNodeInfo::new(&pair),
         }
@@ -85,8 +86,8 @@ pub struct AstBoolean {
 }
 
 impl AstBoolean {
-    fn parse(pair: ParsePair, _: &ParseContext) -> Self {
-        assert_eq!(pair.as_rule(), ParseRule::boolean);
+    fn parse(pair: GrammarPair, _: &ParseContext) -> Self {
+        assert_eq!(pair.as_rule(), GrammarRule::boolean);
         Self {
             info: AstNodeInfo::new(&pair),
             value: content(&pair) == "true",
@@ -101,8 +102,8 @@ pub struct AstNumber {
 }
 
 impl AstNumber {
-    fn parse(pair: ParsePair, _: &ParseContext) -> Self {
-        assert_eq!(pair.as_rule(), ParseRule::number);
+    fn parse(pair: GrammarPair, _: &ParseContext) -> Self {
+        assert_eq!(pair.as_rule(), GrammarRule::number);
         Self {
             info: AstNodeInfo::new(&pair),
             value: content(&pair).parse::<f64>().unwrap(),
@@ -117,8 +118,8 @@ pub struct AstString {
 }
 
 impl AstString {
-    fn parse(pair: ParsePair, _: &ParseContext) -> Self {
-        assert_eq!(pair.as_rule(), ParseRule::string);
+    fn parse(pair: GrammarPair, _: &ParseContext) -> Self {
+        assert_eq!(pair.as_rule(), GrammarRule::string);
         Self {
             info: AstNodeInfo::new(&pair),
             value: unescape(&pair.into_inner().next().unwrap().as_str())
@@ -135,8 +136,8 @@ pub struct AstIdentifier {
 }
 
 impl AstIdentifier {
-    pub fn parse(pair: ParsePair, _: &ParseContext) -> Self {
-        assert_eq!(pair.as_rule(), ParseRule::identifier);
+    pub fn parse(pair: GrammarPair, _: &ParseContext) -> Self {
+        assert_eq!(pair.as_rule(), GrammarRule::identifier);
         Self {
             info: AstNodeInfo::new(&pair),
             name: content(&pair).into(),
@@ -151,8 +152,8 @@ pub struct AstList {
 }
 
 impl AstList {
-    fn parse(pair: ParsePair, context: &ParseContext) -> Self {
-        assert_eq!(pair.as_rule(), ParseRule::list);
+    fn parse(pair: GrammarPair, context: &ParseContext) -> Self {
+        assert_eq!(pair.as_rule(), GrammarRule::list);
         let (info, inner) = inner(pair);
         Self {
             info,
@@ -170,8 +171,8 @@ pub struct AstDict {
 }
 
 impl AstDict {
-    fn parse(pair: ParsePair, context: &ParseContext) -> Self {
-        assert_eq!(pair.as_rule(), ParseRule::dict);
+    fn parse(pair: GrammarPair, context: &ParseContext) -> Self {
+        assert_eq!(pair.as_rule(), GrammarRule::dict);
         let (info, inner) = inner(pair);
         Self {
             info,
@@ -188,8 +189,8 @@ pub struct AstPair {
 }
 
 impl AstPair {
-    fn parse(pair: ParsePair, context: &ParseContext) -> Self {
-        assert_eq!(pair.as_rule(), ParseRule::pair);
+    fn parse(pair: GrammarPair, context: &ParseContext) -> Self {
+        assert_eq!(pair.as_rule(), GrammarRule::pair);
         let (info, mut inner) = inner(pair);
         Self {
             info,
@@ -206,11 +207,11 @@ pub enum AstKeyVariant {
 }
 
 impl AstKeyVariant {
-    fn parse(pair: ParsePair, context: &ParseContext) -> Self {
+    fn parse(pair: GrammarPair, context: &ParseContext) -> Self {
         match pair.as_rule() {
-            ParseRule::identifier => Self::Identifier(AstIdentifier::parse(pair, context)),
-            ParseRule::string => Self::String(AstString::parse(pair, context)),
-            ParseRule::key_expression => {
+            GrammarRule::identifier => Self::Identifier(AstIdentifier::parse(pair, context)),
+            GrammarRule::string => Self::String(AstString::parse(pair, context)),
+            GrammarRule::key_expression => {
                 Self::KeyExpression(AstKeyExpression::parse(pair, context))
             }
             _ => unreachable!(),
@@ -225,8 +226,8 @@ pub struct AstKeyExpression {
 }
 
 impl AstKeyExpression {
-    fn parse(pair: ParsePair, context: &ParseContext) -> Self {
-        assert_eq!(pair.as_rule(), ParseRule::key_expression);
+    fn parse(pair: GrammarPair, context: &ParseContext) -> Self {
+        assert_eq!(pair.as_rule(), GrammarRule::key_expression);
         let (info, mut inner) = inner(pair);
         Self {
             info,
@@ -244,8 +245,8 @@ pub struct AstFunction {
 }
 
 impl AstFunction {
-    pub fn parse(pair: ParsePair, context: &ParseContext) -> Self {
-        assert_eq!(pair.as_rule(), ParseRule::function);
+    pub fn parse(pair: GrammarPair, context: &ParseContext) -> Self {
+        assert_eq!(pair.as_rule(), GrammarRule::function);
         let (info, mut inner) = inner(pair);
         Self {
             info,
@@ -275,17 +276,17 @@ pub enum AstLambdaBodyVariant {
 }
 
 impl AstLambdaBodyVariant {
-    fn parse(pair: ParsePair, context: &ParseContext) -> Self {
+    fn parse(pair: GrammarPair, context: &ParseContext) -> Self {
         match pair.as_rule() {
-            ParseRule::block => Self::Block(AstBlock::parse(pair, context).into()),
+            GrammarRule::block => Self::Block(AstBlock::parse(pair, context).into()),
             _ => Self::Expression(AstExpressionVariant::parse(pair, context)),
         }
     }
 }
 
 impl AstLambda {
-    fn parse(pair: ParsePair, context: &ParseContext) -> Self {
-        assert_eq!(pair.as_rule(), ParseRule::lambda);
+    fn parse(pair: GrammarPair, context: &ParseContext) -> Self {
+        assert_eq!(pair.as_rule(), GrammarRule::lambda);
         let (info, mut inner) = inner(pair);
         Self {
             info,
@@ -309,13 +310,13 @@ pub struct AstBinaryOperation {
 }
 
 impl AstBinaryOperation {
-    fn parse(pair: ParsePair, context: &ParseContext) -> Self {
-        assert_eq!(pair.as_rule(), ParseRule::binary_operations);
+    fn parse(pair: GrammarPair, context: &ParseContext) -> Self {
+        assert_eq!(pair.as_rule(), GrammarRule::binary_operations);
         let (_, inner) = inner(pair);
         let expression = CLIMBER.climb(
             inner,
-            |pair: ParsePair| AstExpressionVariant::parse(pair, context),
-            |left: AstExpressionVariant, pair: ParsePair, right: AstExpressionVariant| {
+            |pair: GrammarPair| AstExpressionVariant::parse(pair, context),
+            |left: AstExpressionVariant, pair: GrammarPair, right: AstExpressionVariant| {
                 let operator = BinaryOperator::from_rule(&pair.as_rule());
                 AstExpressionVariant::BinaryOperation(
                     Self {
@@ -344,16 +345,16 @@ pub enum AstChainVariant {
 }
 
 impl AstChainVariant {
-    pub fn parse(pair: ParsePair, context: &ParseContext) -> Self {
-        assert_eq!(pair.as_rule(), ParseRule::chain);
+    pub fn parse(pair: GrammarPair, context: &ParseContext) -> Self {
+        assert_eq!(pair.as_rule(), GrammarRule::chain);
         let (_, mut inner) = inner(pair);
         let target =
             Self::Expression(AstExpressionVariant::parse(inner.next().unwrap(), context).into());
 
         inner.fold(target, |target, current| match current.as_rule() {
-            ParseRule::index => Self::Index(AstIndex::parse(current, target, context).into()),
-            ParseRule::dot => Self::Dot(AstDot::parse(current, target, context).into()),
-            ParseRule::call => Self::Call(AstCall::parse(current, target, context).into()),
+            GrammarRule::index => Self::Index(AstIndex::parse(current, target, context).into()),
+            GrammarRule::dot => Self::Dot(AstDot::parse(current, target, context).into()),
+            GrammarRule::call => Self::Call(AstCall::parse(current, target, context).into()),
             _ => unreachable!(),
         })
     }
@@ -367,8 +368,8 @@ pub struct AstIndex {
 }
 
 impl AstIndex {
-    fn parse(pair: ParsePair, target: AstChainVariant, context: &ParseContext) -> Self {
-        assert_eq!(pair.as_rule(), ParseRule::index);
+    fn parse(pair: GrammarPair, target: AstChainVariant, context: &ParseContext) -> Self {
+        assert_eq!(pair.as_rule(), GrammarRule::index);
         let (info, mut inner) = inner(pair);
         Self {
             info,
@@ -386,8 +387,8 @@ pub struct AstDot {
 }
 
 impl AstDot {
-    fn parse(pair: ParsePair, target: AstChainVariant, context: &ParseContext) -> Self {
-        assert_eq!(pair.as_rule(), ParseRule::dot);
+    fn parse(pair: GrammarPair, target: AstChainVariant, context: &ParseContext) -> Self {
+        assert_eq!(pair.as_rule(), GrammarRule::dot);
         let (info, mut inner) = inner(pair);
         Self {
             info,
@@ -405,8 +406,8 @@ pub struct AstCall {
 }
 
 impl AstCall {
-    fn parse(pair: ParsePair, target: AstChainVariant, context: &ParseContext) -> Self {
-        assert_eq!(pair.as_rule(), ParseRule::call);
+    fn parse(pair: GrammarPair, target: AstChainVariant, context: &ParseContext) -> Self {
+        assert_eq!(pair.as_rule(), GrammarRule::call);
         let (info, mut inner) = inner(pair);
         Self {
             info,
@@ -428,8 +429,8 @@ pub struct AstWrapped {
 }
 
 impl AstWrapped {
-    fn parse(pair: ParsePair, context: &ParseContext) -> Self {
-        assert_eq!(pair.as_rule(), ParseRule::wrapped);
+    fn parse(pair: GrammarPair, context: &ParseContext) -> Self {
+        assert_eq!(pair.as_rule(), GrammarRule::wrapped);
         let (info, mut inner) = inner(pair);
         Self {
             info,

@@ -10,7 +10,8 @@ type Scope = HashMap<SharedImmutable<String>, usize>;
 
 #[derive(Debug)]
 pub struct Builder {
-    bytecode: Bytecode,
+    instructions: Vec<Instruction>,
+    variable_count: usize,
     markers: BTreeMap<usize, HashSet<Marker>>,
     scopes: Vec<Scope>,
 }
@@ -18,26 +19,27 @@ pub struct Builder {
 impl Builder {
     pub fn new() -> Self {
         Self {
-            bytecode: Bytecode::new(),
+            instructions: Vec::new(),
+            variable_count: 0,
             markers: BTreeMap::new(),
             scopes: vec![HashMap::new()],
         }
     }
 
     pub fn last(&self) -> usize {
-        self.bytecode.len() - 1
+        self.instructions.len() - 1
     }
 
     pub fn end(&self) -> usize {
-        self.bytecode.len()
+        self.instructions.len()
     }
 
     pub fn set(&mut self, line: usize, instruction: Instruction) {
-        self.bytecode.set(line, instruction);
+        self.instructions[line] = instruction;
     }
 
     pub fn add(&mut self, instruction: Instruction) {
-        self.bytecode.add(instruction);
+        self.instructions.push(instruction);
     }
 
     pub fn blank(&mut self) -> usize {
@@ -54,11 +56,13 @@ impl Builder {
     }
 
     pub fn add_variable(&mut self, name: SharedImmutable<String>) -> usize {
-        let address = self.bytecode.add_variable();
+        let address = self.variable_count;
         self.scopes
             .last_mut()
             .expect("There was no scope to add a variable to.")
             .insert(name.clone(), address);
+
+        self.variable_count += 1;
         address
     }
 
@@ -74,7 +78,7 @@ impl Builder {
 
     pub fn build(mut self) -> Bytecode {
         self.finalize();
-        self.bytecode
+        Bytecode::new(self.instructions, self.variable_count)
     }
 
     pub fn mark(&mut self, line: usize, marker: Marker) {
@@ -95,7 +99,7 @@ impl Builder {
     }
 
     fn finalize(&mut self) {
-        for line in 0..=self.bytecode.len() {
+        for line in 0..=self.instructions.len() {
             if self.has_marker(line, Marker::Break) {
                 self.finalize_break(line);
             }
@@ -109,12 +113,12 @@ impl Builder {
         assert!(self.has_marker(line, Marker::Break));
 
         let mut depth = 0;
-        for current in line..=self.bytecode.len() {
+        for current in line..=self.instructions.len() {
             if self.has_marker(current, Marker::LoopStart) {
                 depth += 1;
             } else if self.has_marker(current, Marker::LoopEnd) {
                 if depth == 0 {
-                    self.bytecode.set(line, Instruction::Jump(current));
+                    self.set(line, Instruction::Jump(current));
                     return;
                 }
 

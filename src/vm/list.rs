@@ -5,6 +5,7 @@ use crate::vm::error::VmError;
 
 use super::rid::rid;
 use super::value::{Value, ValueType};
+use super::VmErrorVariant;
 
 #[derive(Debug)]
 pub struct List {
@@ -63,10 +64,13 @@ impl List {
 
                 Ok(self.inner[index].clone())
             }
-            _ => Err(VmError::InvalidIndexAccess {
-                target_type: self.type_of(),
-                index: index.to_string(),
-            }),
+            _ => Err(VmError::new(
+                None,
+                VmErrorVariant::InvalidIndexAccess {
+                    target_type: self.type_of(),
+                    index: index.to_string(),
+                },
+            )),
         }
     }
 
@@ -75,19 +79,25 @@ impl List {
             Value::Number(number) => {
                 let index = number as usize;
                 if number < 0f64 || index >= self.inner.len() {
-                    return Err(VmError::InvalidIndexAssignment {
-                        target_type: self.type_of(),
-                        index: number.to_string(),
-                    });
+                    return Err(VmError::new(
+                        None,
+                        VmErrorVariant::InvalidIndexAssignment {
+                            target_type: self.type_of(),
+                            index: number.to_string(),
+                        },
+                    ));
                 }
 
                 self.inner[index] = value;
                 Ok(())
             }
-            _ => Err(VmError::InvalidIndexAssignment {
-                target_type: self.type_of(),
-                index: index.to_string(),
-            }),
+            _ => Err(VmError::new(
+                None,
+                VmErrorVariant::InvalidIndexAssignment {
+                    target_type: self.type_of(),
+                    index: index.to_string(),
+                },
+            )),
         }
     }
 

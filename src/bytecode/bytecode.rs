@@ -17,33 +17,19 @@ impl Debug for Bytecode {
 }
 
 impl Bytecode {
-    pub fn new() -> Self {
+    pub fn new(instructions: Vec<Instruction>, variable_count: usize) -> Self {
         Self {
-            instructions: Vec::new(),
-            variable_count: 0,
+            instructions,
+            variable_count,
         }
     }
 
-    pub fn len(&self) -> usize {
+    pub fn size(&self) -> usize {
         self.instructions.len()
     }
 
-    pub fn get(&self, line: usize) -> &Instruction {
-        &self.instructions[line]
-    }
-
-    pub fn set(&mut self, line: usize, instruction: Instruction) {
-        self.instructions[line] = instruction;
-    }
-
-    pub fn add(&mut self, instruction: Instruction) {
-        self.instructions.push(instruction);
-    }
-
-    pub fn add_variable(&mut self) -> usize {
-        let count = self.variable_count;
-        self.variable_count += 1;
-        count
+    pub fn get(&self, line: usize) -> Option<&Instruction> {
+        self.instructions.get(line)
     }
 
     pub fn variable_count(&self) -> usize {
