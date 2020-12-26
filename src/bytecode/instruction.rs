@@ -15,7 +15,7 @@ pub enum Instruction {
     IsNull,
     PushNull,
     PushBoolean(bool),
-    PushInteger(i64),
+    PushInt(i64),
     PushFloat(f64),
     PushString(SharedImmutable<String>),
     PushVariable(usize),

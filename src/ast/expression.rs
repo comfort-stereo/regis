@@ -13,7 +13,7 @@ use super::unescape::unescape;
 pub enum AstExpressionVariant {
     Null(Box<AstNull>),
     Boolean(Box<AstBoolean>),
-    Integer(Box<AstInteger>),
+    Int(Box<AstInt>),
     Float(Box<AstFloat>),
     String(Box<AstString>),
     Identifier(Box<AstIdentifier>),
@@ -31,7 +31,7 @@ impl AstExpressionVariant {
         match pair.as_rule() {
             GrammarRule::null => Self::Null(AstNull::parse(pair, context).into()),
             GrammarRule::boolean => Self::Boolean(AstBoolean::parse(pair, context).into()),
-            GrammarRule::integer => Self::Integer(AstInteger::parse(pair, context).into()),
+            GrammarRule::int => Self::Int(AstInt::parse(pair, context).into()),
             GrammarRule::float => Self::Float(AstFloat::parse(pair, context).into()),
             GrammarRule::string => Self::String(AstString::parse(pair, context).into()),
             GrammarRule::identifier => Self::Identifier(AstIdentifier::parse(pair, context).into()),
@@ -99,14 +99,14 @@ impl AstBoolean {
 }
 
 #[derive(Debug)]
-pub struct AstInteger {
+pub struct AstInt {
     pub info: AstNodeInfo,
     pub value: i64,
 }
 
-impl AstInteger {
+impl AstInt {
     fn parse(pair: GrammarPair, _: &ParseContext) -> Self {
-        assert_eq!(pair.as_rule(), GrammarRule::integer);
+        assert_eq!(pair.as_rule(), GrammarRule::int);
         Self {
             info: AstNodeInfo::new(&pair),
             value: content(&pair).parse::<i64>().unwrap(),

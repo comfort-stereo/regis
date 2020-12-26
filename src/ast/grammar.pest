@@ -39,8 +39,8 @@ keyword = _{
 null = @{ keyword_null }
 identifier = @{ !keyword ~ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
 boolean = @{ keyword_true | keyword_false }
-integer = @{ "-"? ~ ("0" | ASCII_NONZERO_DIGIT ~ ASCII_DIGIT*) }
-float = @{ integer ~ "." ~ ASCII_DIGIT+ }
+int = @{ "-"? ~ ("0" | ASCII_NONZERO_DIGIT ~ ASCII_DIGIT*) }
+float = @{ int ~ "." ~ ASCII_DIGIT+ }
 
 string = ${ "\"" ~ chars ~ "\"" }
 chars = @{ char* }
@@ -54,7 +54,7 @@ atom = _{
       null
     | boolean
     | float
-    | integer
+    | int
     | string
     | identifier
 }
@@ -178,7 +178,7 @@ variable_assignment_statement = { identifier ~ br? ~ assignment_operator ~ br? ~
 chain_assignment_statement = { chain ~ br? ~ assignment_operator ~ br? ~ expression }
 expression_statement = { expression }
 
-exec_statement = _{
+execution_statement = _{
       return_statement
     | break_statement
     | continue_statement
@@ -210,7 +210,7 @@ statement = _{
     br?
     ~ (
         block_statement
-        | (exec_statement ~ terminator)
+        | (execution_statement ~ terminator)
     )
     ~ br?
 }

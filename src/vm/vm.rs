@@ -72,7 +72,7 @@ impl Vm {
                 Instruction::IsNull => self.instruction_is_null(),
                 Instruction::PushNull => self.instruction_push_null(),
                 Instruction::PushBoolean(value) => self.instruction_push_boolean(*value),
-                Instruction::PushInteger(value) => self.instruction_push_integer(*value),
+                Instruction::PushInt(value) => self.instruction_push_int(*value),
                 Instruction::PushFloat(value) => self.instruction_push_float(*value),
                 Instruction::PushString(value) => self.instruction_push_string(value.clone()),
                 Instruction::PushVariable(address) => self.instruction_push_variable(*address),
@@ -227,8 +227,8 @@ impl Vm {
         self.push(Value::Boolean(value));
     }
 
-    fn instruction_push_integer(&mut self, value: i64) {
-        self.push(Value::Integer(value));
+    fn instruction_push_int(&mut self, value: i64) {
+        self.push(Value::Int(value));
     }
 
     fn instruction_push_float(&mut self, value: f64) {
@@ -301,11 +301,11 @@ impl Vm {
         let left = self.pop();
 
         let result = match (&left, &right) {
-            (Value::Integer(left), Value::Integer(right)) => match instruction {
-                Instruction::BinaryAdd => Some(Value::Integer(left + right)),
+            (Value::Int(left), Value::Int(right)) => match instruction {
+                Instruction::BinaryAdd => Some(Value::Int(left + right)),
                 Instruction::BinaryDiv => Some(Value::Float((*left) as f64 / (*right) as f64)),
-                Instruction::BinaryMul => Some(Value::Integer(left * right)),
-                Instruction::BinarySub => Some(Value::Integer(left - right)),
+                Instruction::BinaryMul => Some(Value::Int(left * right)),
+                Instruction::BinarySub => Some(Value::Int(left - right)),
                 Instruction::BinaryGt => Some(Value::Boolean(left > right)),
                 Instruction::BinaryLt => Some(Value::Boolean(left < right)),
                 Instruction::BinaryGte => Some(Value::Boolean(left >= right)),
@@ -323,7 +323,7 @@ impl Vm {
                 Instruction::BinaryLte => Some(Value::Boolean(left <= right)),
                 _ => None,
             },
-            (Value::Integer(left), Value::Float(right)) => match instruction {
+            (Value::Int(left), Value::Float(right)) => match instruction {
                 Instruction::BinaryAdd => Some(Value::Float((*left) as f64 + right)),
                 Instruction::BinaryDiv => Some(Value::Float((*left) as f64 / right)),
                 Instruction::BinaryMul => Some(Value::Float((*left) as f64 * right)),
@@ -334,7 +334,7 @@ impl Vm {
                 Instruction::BinaryLte => Some(Value::Boolean((*left) as f64 <= *right)),
                 _ => None,
             },
-            (Value::Float(left), Value::Integer(right)) => match instruction {
+            (Value::Float(left), Value::Int(right)) => match instruction {
                 Instruction::BinaryAdd => Some(Value::Float(left + (*right) as f64)),
                 Instruction::BinaryDiv => Some(Value::Float(left / (*right) as f64)),
                 Instruction::BinaryMul => Some(Value::Float(left * (*right) as f64)),

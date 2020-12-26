@@ -1,6 +1,6 @@
 use crate::ast::expression::{
     AstBinaryOperation, AstBoolean, AstCall, AstChainVariant, AstDot, AstExpressionVariant,
-    AstFloat, AstFunction, AstIdentifier, AstIndex, AstInteger, AstKeyExpression, AstKeyVariant,
+    AstFloat, AstFunction, AstIdentifier, AstIndex, AstInt, AstKeyExpression, AstKeyVariant,
     AstLambda, AstLambdaBodyVariant, AstList, AstNull, AstObject, AstPair, AstString, AstWrapped,
 };
 use crate::ast::operator::BinaryOperator;
@@ -14,7 +14,7 @@ impl Builder {
         match expression {
             AstExpressionVariant::Null(null) => self.emit_null(null),
             AstExpressionVariant::Boolean(boolean) => self.emit_boolean(boolean),
-            AstExpressionVariant::Integer(integer) => self.emit_integer(integer),
+            AstExpressionVariant::Int(int) => self.emit_int(int),
             AstExpressionVariant::Float(float) => self.emit_float(float),
             AstExpressionVariant::String(string) => self.emit_string(string),
             AstExpressionVariant::Identifier(identifier) => self.emit_identifier(identifier),
@@ -38,8 +38,8 @@ impl Builder {
         self.add(Instruction::PushBoolean(*value));
     }
 
-    pub fn emit_integer(&mut self, AstInteger { value, .. }: &AstInteger) {
-        self.add(Instruction::PushInteger(*value));
+    pub fn emit_int(&mut self, AstInt { value, .. }: &AstInt) {
+        self.add(Instruction::PushInt(*value));
     }
 
     pub fn emit_float(&mut self, AstFloat { value, .. }: &AstFloat) {

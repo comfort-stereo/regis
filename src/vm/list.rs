@@ -56,9 +56,9 @@ impl List {
 
     pub fn get(&self, index: Value) -> Result<Value, VmError> {
         match index {
-            Value::Integer(integer) => {
-                let positive = integer as usize;
-                if integer < 0 || positive >= self.inner.len() {
+            Value::Int(int) => {
+                let positive = int as usize;
+                if int < 0 || positive >= self.inner.len() {
                     return Ok(Value::Null);
                 }
 
@@ -70,7 +70,7 @@ impl List {
                     message: format!(
                         "Lists cannot be indexed by type '{}', only '{}' is allowed.",
                         index.type_of(),
-                        ValueType::Integer
+                        ValueType::Int
                     ),
                 },
             )),
@@ -79,9 +79,9 @@ impl List {
 
     pub fn set(&mut self, index: Value, value: Value) -> Result<(), VmError> {
         match index {
-            Value::Integer(integer) => {
-                let index = integer as usize;
-                if integer < 0 || index >= self.inner.len() {
+            Value::Int(int) => {
+                let index = int as usize;
+                if int < 0 || index >= self.inner.len() {
                     return Err(VmError::new(
                         None,
                         VmErrorVariant::IndexOutOfBoundsError {
@@ -102,7 +102,7 @@ impl List {
                     message: format!(
                         "Lists cannot be indexed by type '{}', only '{}' is allowed.",
                         index.type_of(),
-                        ValueType::Integer
+                        ValueType::Int
                     ),
                 },
             )),
