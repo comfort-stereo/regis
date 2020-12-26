@@ -40,7 +40,7 @@ pub fn content<'a>(pair: &GrammarPair<'a>) -> String {
     pair.as_str().trim().into()
 }
 
-pub fn inner<'a>(pair: GrammarPair<'a>) -> (AstNodeInfo, GrammarPairs<'a>) {
+pub fn extract<'a>(pair: GrammarPair<'a>) -> (AstNodeInfo, GrammarPairs<'a>) {
     let info = AstNodeInfo::new(&pair);
     let inner = pair.into_inner();
     (info, inner)

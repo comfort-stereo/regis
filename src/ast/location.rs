@@ -7,6 +7,7 @@ pub struct Position {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Location {
+    pub path: Option<String>,
     pub start: Position,
     pub end: Position,
 }

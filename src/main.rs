@@ -35,7 +35,7 @@ fn main() {
     match interpreter.run_module(&source) {
         Ok(()) => {}
         Err(error) => {
-            println!("{}", error.display(&source));
+            println!("{}", error.show(&source));
         }
     }
 }

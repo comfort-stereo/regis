@@ -20,8 +20,24 @@ keyword_return = _{ "return" }
 keyword_break = _{ "break" }
 keyword_continue = _{ "continue" }
 
+keyword = _{
+      keyword_fn
+    | keyword_let
+    | keyword_echo
+    | keyword_null
+    | keyword_if
+    | keyword_else
+    | keyword_true
+    | keyword_false
+    | keyword_loop
+    | keyword_while
+    | keyword_return
+    | keyword_break
+    | keyword_continue
+}
+
 null = @{ keyword_null }
-identifier = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
+identifier = @{ !keyword ~ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
 boolean = @{ keyword_true | keyword_false }
 number = @{ "-"? ~ ("0" | ASCII_NONZERO_DIGIT ~ ASCII_DIGIT*) ~ ("." ~ ASCII_DIGIT+)? }
 

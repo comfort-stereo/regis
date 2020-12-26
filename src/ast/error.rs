@@ -1,3 +1,5 @@
+use itertools::Itertools;
+
 use pest::error::{InputLocation, LineColLocation};
 
 use super::grammar::{GrammarError, GrammarErrorVariant, GrammarRule};
@@ -6,35 +8,22 @@ use super::location::{Location, Position};
 #[derive(Debug)]
 pub struct ParseError {
     pub location: Location,
-    pub positives: Vec<String>,
-    pub negatives: Vec<String>,
+    pub expected: Vec<String>,
 }
 
 impl ParseError {
-    fn new(location: Location, positives: Vec<String>, negatives: Vec<String>) -> Self {
-        Self {
-            location,
-            positives,
-            negatives,
-        }
+    fn new(location: Location, expected: Vec<String>) -> Self {
+        Self { location, expected }
     }
 
     pub(super) fn from_grammar_error(error: GrammarError) -> Self {
-        let (positives, negatives) = match error.variant {
-            GrammarErrorVariant::ParsingError {
-                positives,
-                negatives,
-            } => (
-                positives
-                    .iter()
-                    .map(|rule| Self::display_grammar_rule(rule))
-                    .collect(),
-                negatives
-                    .iter()
-                    .map(|rule| Self::display_grammar_rule(rule))
-                    .collect(),
-            ),
-            GrammarErrorVariant::CustomError { .. } => (Vec::new(), Vec::new()),
+        let expected = match error.variant {
+            GrammarErrorVariant::ParsingError { positives, .. } => positives
+                .iter()
+                .filter_map(|rule| Self::display_grammar_rule(rule))
+                .unique()
+                .collect(),
+            GrammarErrorVariant::CustomError { .. } => Vec::new(),
         };
 
         let (start_index, end_index) = match error.location {
@@ -72,10 +61,47 @@ impl ParseError {
             }
         };
 
-        ParseError::new(Location { start, end }, positives, negatives)
+        ParseError::new(
+            Location {
+                path: None,
+                start,
+                end,
+            },
+            expected,
+        )
     }
 
-    fn display_grammar_rule(error: &GrammarRule) -> String {
-        format!("{:?}", error)
+    fn display_grammar_rule(error: &GrammarRule) -> Option<String> {
+        match error {
+            GrammarRule::wrapped => None,
+            GrammarRule::binary_operations => None,
+            GrammarRule::chain => None,
+            GrammarRule::operator_binary_ncl
+            | GrammarRule::operator_binary_mul
+            | GrammarRule::operator_binary_div
+            | GrammarRule::operator_binary_add
+            | GrammarRule::operator_binary_sub
+            | GrammarRule::operator_binary_gt
+            | GrammarRule::operator_binary_lt
+            | GrammarRule::operator_binary_gte
+            | GrammarRule::operator_binary_lte
+            | GrammarRule::operator_binary_eq
+            | GrammarRule::operator_binary_neq
+            | GrammarRule::operator_binary_and
+            | GrammarRule::operator_binary_or
+            | GrammarRule::operator_binary_push => Some("binary-operator".into()),
+            GrammarRule::operator_assign_direct
+            | GrammarRule::operator_assign_ncl
+            | GrammarRule::operator_assign_mul
+            | GrammarRule::operator_assign_div
+            | GrammarRule::operator_assign_add
+            | GrammarRule::operator_assign_sub
+            | GrammarRule::operator_assign_and
+            | GrammarRule::operator_assign_or => Some("assignment-operator".into()),
+            GrammarRule::index => Some("index".into()),
+            GrammarRule::dot => Some("dot".into()),
+            GrammarRule::call => Some("call".into()),
+            error => Some(format!("{:?}", error)),
+        }
     }
 }

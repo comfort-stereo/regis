@@ -1,4 +1,4 @@
-use super::grammar::{inner, GrammarPair, GrammarRule, ParseContext};
+use super::grammar::{extract, GrammarPair, GrammarRule, ParseContext};
 use super::node::AstNodeInfo;
 use super::statement::AstStatementVariant;
 
@@ -11,7 +11,7 @@ pub struct AstModule {
 impl AstModule {
     pub fn parse(pair: GrammarPair, context: &ParseContext) -> Self {
         assert_eq!(pair.as_rule(), GrammarRule::module);
-        let (info, inner) = inner(pair);
+        let (info, inner) = extract(pair);
         Self {
             info,
             statements: inner
@@ -30,7 +30,7 @@ pub struct AstBlock {
 impl AstBlock {
     pub fn parse(pair: GrammarPair, context: &ParseContext) -> Self {
         assert_eq!(pair.as_rule(), GrammarRule::block);
-        let (info, inner) = inner(pair);
+        let (info, inner) = extract(pair);
         Self {
             info,
             statements: inner

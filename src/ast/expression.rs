@@ -2,7 +2,7 @@ use crate::shared::SharedImmutable;
 
 use super::base::AstBlock;
 use super::grammar::{
-    content, inner, GrammarAssoc, GrammarOperator, GrammarPair, GrammarPrecClimber, GrammarRule,
+    content, extract, GrammarAssoc, GrammarOperator, GrammarPair, GrammarPrecClimber, GrammarRule,
     ParseContext,
 };
 use super::node::AstNodeInfo;
@@ -154,7 +154,7 @@ pub struct AstList {
 impl AstList {
     fn parse(pair: GrammarPair, context: &ParseContext) -> Self {
         assert_eq!(pair.as_rule(), GrammarRule::list);
-        let (info, inner) = inner(pair);
+        let (info, inner) = extract(pair);
         Self {
             info,
             values: inner
@@ -173,7 +173,7 @@ pub struct AstDict {
 impl AstDict {
     fn parse(pair: GrammarPair, context: &ParseContext) -> Self {
         assert_eq!(pair.as_rule(), GrammarRule::dict);
-        let (info, inner) = inner(pair);
+        let (info, inner) = extract(pair);
         Self {
             info,
             pairs: inner.map(|value| AstPair::parse(value, context)).collect(),
@@ -191,7 +191,7 @@ pub struct AstPair {
 impl AstPair {
     fn parse(pair: GrammarPair, context: &ParseContext) -> Self {
         assert_eq!(pair.as_rule(), GrammarRule::pair);
-        let (info, mut inner) = inner(pair);
+        let (info, mut inner) = extract(pair);
         Self {
             info,
             key: AstKeyVariant::parse(inner.next().unwrap(), context),
@@ -228,7 +228,7 @@ pub struct AstKeyExpression {
 impl AstKeyExpression {
     fn parse(pair: GrammarPair, context: &ParseContext) -> Self {
         assert_eq!(pair.as_rule(), GrammarRule::key_expression);
-        let (info, mut inner) = inner(pair);
+        let (info, mut inner) = extract(pair);
         Self {
             info,
             value: AstExpressionVariant::parse(inner.next().unwrap(), context).into(),
@@ -247,7 +247,7 @@ pub struct AstFunction {
 impl AstFunction {
     pub fn parse(pair: GrammarPair, context: &ParseContext) -> Self {
         assert_eq!(pair.as_rule(), GrammarRule::function);
-        let (info, mut inner) = inner(pair);
+        let (info, mut inner) = extract(pair);
         Self {
             info,
             name: AstIdentifier::parse(inner.next().unwrap(), context).into(),
@@ -287,7 +287,7 @@ impl AstLambdaBodyVariant {
 impl AstLambda {
     fn parse(pair: GrammarPair, context: &ParseContext) -> Self {
         assert_eq!(pair.as_rule(), GrammarRule::lambda);
-        let (info, mut inner) = inner(pair);
+        let (info, mut inner) = extract(pair);
         Self {
             info,
             parameters: inner
@@ -312,7 +312,7 @@ pub struct AstBinaryOperation {
 impl AstBinaryOperation {
     fn parse(pair: GrammarPair, context: &ParseContext) -> Self {
         assert_eq!(pair.as_rule(), GrammarRule::binary_operations);
-        let (_, inner) = inner(pair);
+        let (_, inner) = extract(pair);
         let expression = CLIMBER.climb(
             inner,
             |pair: GrammarPair| AstExpressionVariant::parse(pair, context),
@@ -347,7 +347,7 @@ pub enum AstChainVariant {
 impl AstChainVariant {
     pub fn parse(pair: GrammarPair, context: &ParseContext) -> Self {
         assert_eq!(pair.as_rule(), GrammarRule::chain);
-        let (_, mut inner) = inner(pair);
+        let (_, mut inner) = extract(pair);
         let target =
             Self::Expression(AstExpressionVariant::parse(inner.next().unwrap(), context).into());
 
@@ -370,7 +370,7 @@ pub struct AstIndex {
 impl AstIndex {
     fn parse(pair: GrammarPair, target: AstChainVariant, context: &ParseContext) -> Self {
         assert_eq!(pair.as_rule(), GrammarRule::index);
-        let (info, mut inner) = inner(pair);
+        let (info, mut inner) = extract(pair);
         Self {
             info,
             target,
@@ -389,7 +389,7 @@ pub struct AstDot {
 impl AstDot {
     fn parse(pair: GrammarPair, target: AstChainVariant, context: &ParseContext) -> Self {
         assert_eq!(pair.as_rule(), GrammarRule::dot);
-        let (info, mut inner) = inner(pair);
+        let (info, mut inner) = extract(pair);
         Self {
             info,
             target,
@@ -408,7 +408,7 @@ pub struct AstCall {
 impl AstCall {
     fn parse(pair: GrammarPair, target: AstChainVariant, context: &ParseContext) -> Self {
         assert_eq!(pair.as_rule(), GrammarRule::call);
-        let (info, mut inner) = inner(pair);
+        let (info, mut inner) = extract(pair);
         Self {
             info,
             target,
@@ -431,7 +431,7 @@ pub struct AstWrapped {
 impl AstWrapped {
     fn parse(pair: GrammarPair, context: &ParseContext) -> Self {
         assert_eq!(pair.as_rule(), GrammarRule::wrapped);
-        let (info, mut inner) = inner(pair);
+        let (info, mut inner) = extract(pair);
         Self {
             info,
             value: AstExpressionVariant::parse(inner.next().unwrap(), context).into(),
