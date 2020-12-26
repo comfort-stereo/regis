@@ -13,7 +13,8 @@ use super::unescape::unescape;
 pub enum AstExpressionVariant {
     Null(Box<AstNull>),
     Boolean(Box<AstBoolean>),
-    Number(Box<AstNumber>),
+    Integer(Box<AstInteger>),
+    Float(Box<AstFloat>),
     String(Box<AstString>),
     Identifier(Box<AstIdentifier>),
     List(Box<AstList>),
@@ -30,7 +31,8 @@ impl AstExpressionVariant {
         match pair.as_rule() {
             GrammarRule::null => Self::Null(AstNull::parse(pair, context).into()),
             GrammarRule::boolean => Self::Boolean(AstBoolean::parse(pair, context).into()),
-            GrammarRule::number => Self::Number(AstNumber::parse(pair, context).into()),
+            GrammarRule::integer => Self::Integer(AstInteger::parse(pair, context).into()),
+            GrammarRule::float => Self::Float(AstFloat::parse(pair, context).into()),
             GrammarRule::string => Self::String(AstString::parse(pair, context).into()),
             GrammarRule::identifier => Self::Identifier(AstIdentifier::parse(pair, context).into()),
             GrammarRule::list => Self::List(AstList::parse(pair, context).into()),
@@ -65,6 +67,7 @@ lazy_static! {
         ])
     };
 }
+
 #[derive(Debug)]
 pub struct AstNull {
     pub info: AstNodeInfo,
@@ -96,14 +99,30 @@ impl AstBoolean {
 }
 
 #[derive(Debug)]
-pub struct AstNumber {
+pub struct AstInteger {
+    pub info: AstNodeInfo,
+    pub value: i64,
+}
+
+impl AstInteger {
+    fn parse(pair: GrammarPair, _: &ParseContext) -> Self {
+        assert_eq!(pair.as_rule(), GrammarRule::integer);
+        Self {
+            info: AstNodeInfo::new(&pair),
+            value: content(&pair).parse::<i64>().unwrap(),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct AstFloat {
     pub info: AstNodeInfo,
     pub value: f64,
 }
 
-impl AstNumber {
+impl AstFloat {
     fn parse(pair: GrammarPair, _: &ParseContext) -> Self {
-        assert_eq!(pair.as_rule(), GrammarRule::number);
+        assert_eq!(pair.as_rule(), GrammarRule::float);
         Self {
             info: AstNodeInfo::new(&pair),
             value: content(&pair).parse::<f64>().unwrap(),

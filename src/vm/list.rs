@@ -56,19 +56,22 @@ impl List {
 
     pub fn get(&self, index: Value) -> Result<Value, VmError> {
         match index {
-            Value::Number(number) => {
-                let index = number as usize;
-                if number < 0f64 || index >= self.inner.len() {
+            Value::Integer(integer) => {
+                let positive = integer as usize;
+                if integer < 0 || positive >= self.inner.len() {
                     return Ok(Value::Null);
                 }
 
-                Ok(self.inner[index].clone())
+                Ok(self.inner[positive].clone())
             }
             _ => Err(VmError::new(
                 None,
-                VmErrorVariant::InvalidIndexAccess {
-                    target_type: self.type_of(),
-                    index: index.to_string(),
+                VmErrorVariant::TypeError {
+                    message: format!(
+                        "Lists cannot be indexed by type '{}', only '{}' is allowed.",
+                        index.type_of(),
+                        ValueType::Integer
+                    ),
                 },
             )),
         }
@@ -76,14 +79,16 @@ impl List {
 
     pub fn set(&mut self, index: Value, value: Value) -> Result<(), VmError> {
         match index {
-            Value::Number(number) => {
-                let index = number as usize;
-                if number < 0f64 || index >= self.inner.len() {
+            Value::Integer(integer) => {
+                let index = integer as usize;
+                if integer < 0 || index >= self.inner.len() {
                     return Err(VmError::new(
                         None,
-                        VmErrorVariant::InvalidIndexAssignment {
-                            target_type: self.type_of(),
-                            index: number.to_string(),
+                        VmErrorVariant::IndexOutOfBoundsError {
+                            message: format!(
+                                "Attempted to set invalid list index '{}'.",
+                                value.to_string()
+                            ),
                         },
                     ));
                 }
@@ -93,9 +98,12 @@ impl List {
             }
             _ => Err(VmError::new(
                 None,
-                VmErrorVariant::InvalidIndexAssignment {
-                    target_type: self.type_of(),
-                    index: index.to_string(),
+                VmErrorVariant::TypeError {
+                    message: format!(
+                        "Lists cannot be indexed by type '{}', only '{}' is allowed.",
+                        index.type_of(),
+                        ValueType::Integer
+                    ),
                 },
             )),
         }

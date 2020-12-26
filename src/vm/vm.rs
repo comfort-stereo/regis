@@ -72,7 +72,8 @@ impl Vm {
                 Instruction::IsNull => self.instruction_is_null(),
                 Instruction::PushNull => self.instruction_push_null(),
                 Instruction::PushBoolean(value) => self.instruction_push_boolean(*value),
-                Instruction::PushNumber(value) => self.instruction_push_number(*value),
+                Instruction::PushInteger(value) => self.instruction_push_integer(*value),
+                Instruction::PushFloat(value) => self.instruction_push_float(*value),
                 Instruction::PushString(value) => self.instruction_push_string(value.clone()),
                 Instruction::PushVariable(address) => self.instruction_push_variable(*address),
                 Instruction::AssignVariable(address) => self.instruction_assign_variable(*address),
@@ -226,8 +227,12 @@ impl Vm {
         self.push(Value::Boolean(value));
     }
 
-    fn instruction_push_number(&mut self, value: f64) {
-        self.push(Value::Number(value));
+    fn instruction_push_integer(&mut self, value: i64) {
+        self.push(Value::Integer(value));
+    }
+
+    fn instruction_push_float(&mut self, value: f64) {
+        self.push(Value::Float(value));
     }
 
     fn instruction_push_string(&mut self, value: SharedImmutable<String>) {
@@ -295,16 +300,49 @@ impl Vm {
         let right = self.pop();
         let left = self.pop();
 
-        let result = match (left.clone(), right.clone()) {
-            (Value::Number(left), Value::Number(right)) => match instruction {
-                Instruction::BinaryAdd => Some(Value::Number(left + right)),
-                Instruction::BinaryDiv => Some(Value::Number(left / right)),
-                Instruction::BinaryMul => Some(Value::Number(left * right)),
-                Instruction::BinarySub => Some(Value::Number(left - right)),
+        let result = match (&left, &right) {
+            (Value::Integer(left), Value::Integer(right)) => match instruction {
+                Instruction::BinaryAdd => Some(Value::Integer(left + right)),
+                Instruction::BinaryDiv => Some(Value::Float((*left) as f64 / (*right) as f64)),
+                Instruction::BinaryMul => Some(Value::Integer(left * right)),
+                Instruction::BinarySub => Some(Value::Integer(left - right)),
                 Instruction::BinaryGt => Some(Value::Boolean(left > right)),
                 Instruction::BinaryLt => Some(Value::Boolean(left < right)),
                 Instruction::BinaryGte => Some(Value::Boolean(left >= right)),
                 Instruction::BinaryLte => Some(Value::Boolean(left <= right)),
+                _ => None,
+            },
+            (Value::Float(left), Value::Float(right)) => match instruction {
+                Instruction::BinaryAdd => Some(Value::Float(left + right)),
+                Instruction::BinaryDiv => Some(Value::Float(left / right)),
+                Instruction::BinaryMul => Some(Value::Float(left * right)),
+                Instruction::BinarySub => Some(Value::Float(left - right)),
+                Instruction::BinaryGt => Some(Value::Boolean(left > right)),
+                Instruction::BinaryLt => Some(Value::Boolean(left < right)),
+                Instruction::BinaryGte => Some(Value::Boolean(left >= right)),
+                Instruction::BinaryLte => Some(Value::Boolean(left <= right)),
+                _ => None,
+            },
+            (Value::Integer(left), Value::Float(right)) => match instruction {
+                Instruction::BinaryAdd => Some(Value::Float((*left) as f64 + right)),
+                Instruction::BinaryDiv => Some(Value::Float((*left) as f64 / right)),
+                Instruction::BinaryMul => Some(Value::Float((*left) as f64 * right)),
+                Instruction::BinarySub => Some(Value::Float((*left) as f64 - right)),
+                Instruction::BinaryGt => Some(Value::Boolean((*left) as f64 > *right)),
+                Instruction::BinaryLt => Some(Value::Boolean((*(left) as f64) < *right)),
+                Instruction::BinaryGte => Some(Value::Boolean((*left) as f64 >= *right)),
+                Instruction::BinaryLte => Some(Value::Boolean((*left) as f64 <= *right)),
+                _ => None,
+            },
+            (Value::Float(left), Value::Integer(right)) => match instruction {
+                Instruction::BinaryAdd => Some(Value::Float(left + (*right) as f64)),
+                Instruction::BinaryDiv => Some(Value::Float(left / (*right) as f64)),
+                Instruction::BinaryMul => Some(Value::Float(left * (*right) as f64)),
+                Instruction::BinarySub => Some(Value::Float(left - (*right) as f64)),
+                Instruction::BinaryGt => Some(Value::Boolean(*left > (*right) as f64)),
+                Instruction::BinaryLt => Some(Value::Boolean(*left < (*right) as f64)),
+                Instruction::BinaryGte => Some(Value::Boolean(*left >= (*right) as f64)),
+                Instruction::BinaryLte => Some(Value::Boolean(*left <= (*right) as f64)),
                 _ => None,
             },
             (Value::List(left), Value::List(right)) => match instruction {
@@ -313,8 +351,8 @@ impl Vm {
             },
             (Value::List(left), right) => match instruction {
                 Instruction::BinaryPush => {
-                    left.borrow_mut().push(right);
-                    Some(Value::List(left))
+                    left.borrow_mut().push(right.clone());
+                    Some(Value::List(left.clone()))
                 }
                 _ => None,
             },
@@ -366,9 +404,8 @@ impl Vm {
             _ => {
                 return Err(VmError::new(
                     None,
-                    VmErrorVariant::InvalidIndexAccess {
-                        target_type: target.type_of(),
-                        index: index.to_string(),
+                    VmErrorVariant::TypeError {
+                        message: format!("Type '{}' is not indexable.", target.type_of()),
                     },
                 ));
             }
@@ -389,9 +426,8 @@ impl Vm {
             _ => {
                 return Err(VmError::new(
                     None,
-                    VmErrorVariant::InvalidIndexAssignment {
-                        target_type: target.type_of(),
-                        index: index.to_string(),
+                    VmErrorVariant::TypeError {
+                        message: format!("Type '{}' is not indexable.", target.type_of()),
                     },
                 ));
             }

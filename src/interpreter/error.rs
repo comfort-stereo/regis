@@ -96,18 +96,8 @@ impl InterpreterError {
                     operation, target_type
                 )
             }
-            VmErrorVariant::InvalidIndexAccess { target_type, index } => {
-                format!(
-                    "Attempted to get invalid index '{}' of type '{}'.",
-                    index, target_type
-                )
-            }
-            VmErrorVariant::InvalidIndexAssignment { target_type, index } => {
-                format!(
-                    "Attempted to set invalid index '{}' of type '{}'.",
-                    index, target_type,
-                )
-            }
+            VmErrorVariant::IndexOutOfBoundsError { message } => message.into(),
+            VmErrorVariant::TypeError { message } => message.into(),
         };
 
         InterpreterErrorDisplay {

@@ -25,12 +25,10 @@ pub enum VmErrorVariant {
         operation: String,
         target_type: ValueType,
     },
-    InvalidIndexAccess {
-        target_type: ValueType,
-        index: String,
+    IndexOutOfBoundsError {
+        message: String,
     },
-    InvalidIndexAssignment {
-        target_type: ValueType,
-        index: String,
+    TypeError {
+        message: String,
     },
 }

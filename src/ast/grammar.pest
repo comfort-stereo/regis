@@ -39,7 +39,8 @@ keyword = _{
 null = @{ keyword_null }
 identifier = @{ !keyword ~ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
 boolean = @{ keyword_true | keyword_false }
-number = @{ "-"? ~ ("0" | ASCII_NONZERO_DIGIT ~ ASCII_DIGIT*) ~ ("." ~ ASCII_DIGIT+)? }
+integer = @{ "-"? ~ ("0" | ASCII_NONZERO_DIGIT ~ ASCII_DIGIT*) }
+float = @{ integer ~ ("." ~ ASCII_DIGIT+)? }
 
 string = ${ "\"" ~ chars ~ "\"" }
 chars = @{ char* }
@@ -52,7 +53,8 @@ char = {
 atom = _{
       null
     | boolean
-    | number
+    | float
+    | integer
     | string
     | identifier
 }
