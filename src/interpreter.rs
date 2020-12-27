@@ -31,6 +31,8 @@ impl Interpreter {
         };
 
         let bytecode = Bytecode::compile_module(&ast);
-        self.vm.run(&bytecode).map_err(InterpreterError::VmError)
+        self.vm
+            .run_module(&bytecode)
+            .map_err(InterpreterError::VmError)
     }
 }

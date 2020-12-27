@@ -1,12 +1,14 @@
 use crate::ast::expression::{
     AstBinaryOperation, AstBoolean, AstCall, AstChainVariant, AstDot, AstExpressionVariant,
-    AstFloat, AstFunction, AstIdentifier, AstIndex, AstInt, AstKeyExpression, AstKeyVariant,
-    AstLambda, AstLambdaBodyVariant, AstList, AstNull, AstObject, AstPair, AstString, AstWrapped,
+    AstFloat, AstFunction, AstFunctionBodyVariant, AstIdentifier, AstIndex, AstInt,
+    AstKeyExpression, AstKeyVariant, AstLambda, AstList, AstNull, AstObject, AstPair, AstString,
+    AstWrapped,
 };
 use crate::ast::operator::BinaryOperator;
 
 use super::super::instruction::Instruction;
 use super::super::procedure::Procedure;
+use super::super::variable::Parameter;
 use super::Builder;
 
 impl Builder {
@@ -51,7 +53,11 @@ impl Builder {
     }
 
     pub fn emit_identifier(&mut self, AstIdentifier { name, .. }: &AstIdentifier) {
-        self.add(Instruction::PushVariable(self.get_variable_address(name)));
+        let address = self
+            .environment()
+            .borrow_mut()
+            .get_or_capture_variable_address(name);
+        self.add(Instruction::PushVariable(address));
     }
 
     pub fn emit_list(&mut self, AstList { values, .. }: &AstList) {
@@ -87,55 +93,51 @@ impl Builder {
         AstFunction {
             name,
             parameters,
-            block,
+            body,
             ..
         }: &AstFunction,
     ) {
-        let name = name.name.clone();
-        let parameters = parameters
-            .iter()
-            .map(|parameter| parameter.name.clone())
-            .collect::<Vec<_>>();
-
-        let bytecode = {
-            let mut builder = Builder::new();
-            for parameter in &parameters {
-                builder.add_variable(parameter.clone());
-            }
-            builder.emit_block(&block);
-            builder.build()
-        };
-
-        let procedure = Procedure::new(Some(name), parameters, bytecode);
-        self.add(Instruction::CreateFunction(procedure.into()));
+        self.emit_generic_function(Some(name), parameters, body);
     }
 
     pub fn emit_lambda(
         &mut self,
         AstLambda {
-            body, parameters, ..
+            parameters, body, ..
         }: &AstLambda,
     ) {
+        self.emit_generic_function(None, parameters, body);
+    }
+
+    fn emit_generic_function(
+        &mut self,
+        name: Option<&AstIdentifier>,
+        parameters: &[AstIdentifier],
+        body: &AstFunctionBodyVariant,
+    ) {
+        let name = name.map(|name| name.name.clone());
         let parameters = parameters
             .iter()
             .map(|parameter| parameter.name.clone())
             .collect::<Vec<_>>();
 
         let bytecode = {
-            let mut builder = Builder::new();
+            let mut builder = Builder::new_with_parent_environment(self.environment().clone());
             for parameter in &parameters {
-                builder.add_variable(parameter.clone());
+                builder.environment().borrow_mut().add_parameter(Parameter {
+                    name: parameter.clone(),
+                });
             }
             match body {
-                AstLambdaBodyVariant::Block(block) => builder.emit_block(&block),
-                AstLambdaBodyVariant::Expression(expression) => {
+                AstFunctionBodyVariant::Block(block) => builder.emit_block(&block),
+                AstFunctionBodyVariant::Expression(expression) => {
                     builder.emit_expression(&expression)
                 }
             }
             builder.build()
         };
 
-        let procedure = Procedure::new(None, parameters, bytecode);
+        let procedure = Procedure::new(name, parameters, bytecode);
         self.add(Instruction::CreateFunction(procedure.into()));
     }
 

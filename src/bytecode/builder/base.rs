@@ -4,18 +4,18 @@ use super::Builder;
 
 impl Builder {
     pub fn emit_module(&mut self, AstModule { statements, .. }: &AstModule) {
-        self.push_scope();
+        self.environment().borrow_mut().push_scope();
         for statement in statements {
             self.emit_statement(statement);
         }
-        self.pop_scope();
+        self.environment().borrow_mut().pop_scope();
     }
 
     pub fn emit_block(&mut self, AstBlock { statements, .. }: &AstBlock) {
-        self.push_scope();
+        self.environment().borrow_mut().push_scope();
         for statement in statements {
             self.emit_statement(&statement);
         }
-        self.pop_scope();
+        self.environment().borrow_mut().pop_scope();
     }
 }

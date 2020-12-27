@@ -260,7 +260,7 @@ pub struct AstFunction {
     pub info: AstNodeInfo,
     pub name: Box<AstIdentifier>,
     pub parameters: Vec<AstIdentifier>,
-    pub block: Box<AstBlock>,
+    pub body: AstFunctionBodyVariant,
 }
 
 impl AstFunction {
@@ -276,7 +276,7 @@ impl AstFunction {
                 .into_inner()
                 .map(|parameter| AstIdentifier::parse(parameter, context))
                 .collect(),
-            block: AstBlock::parse(inner.next().unwrap(), context).into(),
+            body: AstFunctionBodyVariant::parse(inner.next().unwrap(), context),
         }
     }
 }
@@ -285,22 +285,7 @@ impl AstFunction {
 pub struct AstLambda {
     pub info: AstNodeInfo,
     pub parameters: Vec<AstIdentifier>,
-    pub body: AstLambdaBodyVariant,
-}
-
-#[derive(Debug)]
-pub enum AstLambdaBodyVariant {
-    Block(Box<AstBlock>),
-    Expression(AstExpressionVariant),
-}
-
-impl AstLambdaBodyVariant {
-    fn parse(pair: GrammarPair, context: &ParseContext) -> Self {
-        match pair.as_rule() {
-            GrammarRule::block => Self::Block(AstBlock::parse(pair, context).into()),
-            _ => Self::Expression(AstExpressionVariant::parse(pair, context)),
-        }
-    }
+    pub body: AstFunctionBodyVariant,
 }
 
 impl AstLambda {
@@ -315,7 +300,22 @@ impl AstLambda {
                 .into_inner()
                 .map(|parameter| AstIdentifier::parse(parameter, context))
                 .collect(),
-            body: AstLambdaBodyVariant::parse(inner.next().unwrap(), context),
+            body: AstFunctionBodyVariant::parse(inner.next().unwrap(), context),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum AstFunctionBodyVariant {
+    Block(Box<AstBlock>),
+    Expression(AstExpressionVariant),
+}
+
+impl AstFunctionBodyVariant {
+    fn parse(pair: GrammarPair, context: &ParseContext) -> Self {
+        match pair.as_rule() {
+            GrammarRule::block => Self::Block(AstBlock::parse(pair, context).into()),
+            _ => Self::Expression(AstExpressionVariant::parse(pair, context)),
         }
     }
 }

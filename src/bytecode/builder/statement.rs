@@ -6,8 +6,10 @@ use crate::ast::statement::{
     AstLoopStatement, AstReturnStatement, AstStatementVariant, AstVariableAssignmentStatement,
     AstVariableDeclarationStatement, AstWhileStatement,
 };
+use crate::bytecode::variable::VariableVariant;
 
 use super::super::instruction::Instruction;
+use super::super::variable::Variable;
 use super::marker::Marker;
 use super::Builder;
 
@@ -152,7 +154,10 @@ impl Builder {
         AstFunctionStatement { function, .. }: &AstFunctionStatement,
     ) {
         let name = &function.name.name;
-        let address = self.add_variable(name.clone());
+        let address = self.environment().borrow_mut().add_variable(Variable {
+            name: name.clone(),
+            variant: VariableVariant::Local,
+        });
         self.emit_function(function);
         self.add(Instruction::AssignVariable(address));
     }
@@ -164,7 +169,10 @@ impl Builder {
         }: &AstVariableDeclarationStatement,
     ) {
         let name = &identifier.name;
-        let address = self.add_variable(name.clone());
+        let address = self.environment().borrow_mut().add_variable(Variable {
+            name: name.clone(),
+            variant: VariableVariant::Local,
+        });
         self.emit_expression(value);
         self.add(Instruction::AssignVariable(address));
     }
@@ -180,7 +188,11 @@ impl Builder {
     ) {
         let name = &identifier.name;
         if *operator != AssignmentOperator::Direct {
-            self.add(Instruction::PushVariable(self.get_variable_address(name)));
+            let address = self
+                .environment()
+                .borrow_mut()
+                .get_or_capture_variable_address(name);
+            self.add(Instruction::PushVariable(address));
         }
 
         match operator {
@@ -206,7 +218,11 @@ impl Builder {
             AssignmentOperator::Ncl => self.emit_ncl_operation(value),
         }
 
-        self.add(Instruction::AssignVariable(self.get_variable_address(name)));
+        let address = self
+            .environment()
+            .borrow_mut()
+            .get_or_capture_variable_address(name);
+        self.add(Instruction::AssignVariable(address));
     }
 
     pub fn emit_chain_assignment_statement(

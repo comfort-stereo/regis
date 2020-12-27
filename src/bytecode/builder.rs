@@ -1,26 +1,25 @@
 mod base;
+mod environment;
 mod expression;
 mod marker;
 mod operator;
 mod statement;
 
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashSet};
 
-use crate::shared::SharedImmutable;
+use crate::shared::SharedMutable;
 
 use super::instruction::Instruction;
 use super::Bytecode;
 
+use environment::Environment;
 use marker::Marker;
-
-type Scope = HashMap<SharedImmutable<String>, usize>;
 
 #[derive(Debug)]
 pub struct Builder {
     instructions: Vec<Instruction>,
-    variables: Vec<SharedImmutable<String>>,
     markers: BTreeMap<usize, HashSet<Marker>>,
-    scopes: Vec<Scope>,
+    environment: SharedMutable<Environment>,
 }
 
 impl Default for Builder {
@@ -33,9 +32,16 @@ impl Builder {
     pub fn new() -> Self {
         Self {
             instructions: Vec::new(),
-            variables: Vec::new(),
             markers: BTreeMap::new(),
-            scopes: vec![HashMap::new()],
+            environment: Environment::new().into(),
+        }
+    }
+
+    pub fn new_with_parent_environment(parent_environment: SharedMutable<Environment>) -> Self {
+        Self {
+            instructions: Vec::new(),
+            markers: BTreeMap::new(),
+            environment: Environment::new_with_parent(parent_environment).into(),
         }
     }
 
@@ -60,33 +66,8 @@ impl Builder {
         self.last()
     }
 
-    pub fn push_scope(&mut self) {
-        self.scopes.push(Scope::new());
-    }
-
-    pub fn pop_scope(&mut self) -> Scope {
-        self.scopes.pop().expect("There was no scope to pop.")
-    }
-
-    pub fn add_variable(&mut self, name: SharedImmutable<String>) -> usize {
-        let address = self.variables.len();
-        self.variables.push(name.clone());
-        self.scopes
-            .last_mut()
-            .expect("There was no scope to add a variable to.")
-            .insert(name, address);
-
-        address
-    }
-
-    pub fn get_variable_address(&self, name: &SharedImmutable<String>) -> usize {
-        for scope in self.scopes.iter().rev() {
-            if let Some(address) = scope.get(name) {
-                return *address;
-            }
-        }
-
-        panic!("No variable '{}' was found in scope.", name);
+    fn environment(&self) -> &SharedMutable<Environment> {
+        &self.environment
     }
 
     pub fn mark(&mut self, line: usize, marker: Marker) {
@@ -105,7 +86,11 @@ impl Builder {
 
     pub fn build(mut self) -> Bytecode {
         self.finalize();
-        Bytecode::new(self.instructions, self.variables)
+        Bytecode::new(
+            self.instructions,
+            self.environment.borrow().parameters().clone(),
+            self.environment.borrow().variables().clone(),
+        )
     }
 
     fn finalize(&mut self) {

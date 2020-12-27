@@ -1,3 +1,4 @@
+mod closure;
 mod error;
 mod function;
 mod list;
@@ -11,14 +12,31 @@ pub use list::List;
 pub use object::Object;
 pub use value::{Value, ValueType};
 
-use crate::bytecode::{Bytecode, Instruction, Procedure};
-use crate::shared::SharedImmutable;
+use crate::bytecode::{Bytecode, Instruction, Procedure, VariableVariant};
+use crate::shared::{SharedImmutable, SharedMutable};
+
+use closure::Capture;
 
 static DEBUG: bool = false;
 
+#[derive(Debug, Clone)]
+enum StackValue {
+    Value(Value),
+    Capture(SharedMutable<Capture>),
+}
+
+impl StackValue {
+    pub fn get(&self) -> Value {
+        match self {
+            StackValue::Value(value) => value.clone(),
+            StackValue::Capture(capture) => capture.borrow().value.clone(),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Vm {
-    stack: Vec<Value>,
+    stack: Vec<StackValue>,
     calls: Vec<Call>,
 }
 
@@ -36,21 +54,73 @@ impl Vm {
         }
     }
 
-    pub fn run(&mut self, bytecode: &Bytecode) -> Result<(), VmError> {
-        self.run_with_arguments(bytecode, 0)
-    }
-
-    pub fn run_with_arguments(
-        &mut self,
-        bytecode: &Bytecode,
-        argument_count: usize,
-    ) -> Result<(), VmError> {
-        // Any arguments should be allocated on the stack already.
-        // Allocate space for all other variables.
-        for _ in argument_count..bytecode.variables().len() {
-            self.push(Value::Null);
+    pub fn run_module(&mut self, bytecode: &Bytecode) -> Result<(), VmError> {
+        // Allocate space for all variables.
+        for _ in 0..bytecode.variables().len() {
+            self.push_value(Value::Null);
         }
 
+        // Run the bytecode instructions.
+        self.run_instructions(bytecode)
+    }
+
+    pub fn run_function(
+        &mut self,
+        function: &SharedImmutable<Function>,
+        argument_count: usize,
+    ) -> Result<(), VmError> {
+        // Push a new call onto the stack. Store the position we return to to after its finished.
+        {
+            let position = self.top_position() - argument_count;
+            self.calls.push(Call::new(function.clone(), position));
+        }
+
+        // Arguments should be allocated on the stack already.
+        {
+            if argument_count > function.bytecode().parameters().len() {
+                // If there are extra arguments for the function, pop them off and discard them.
+                for _ in function.bytecode().parameters().len()..argument_count {
+                    self.pop_value();
+                }
+            } else {
+                // If there are missing arguments for the function push null to replace them.
+                for _ in argument_count..function.bytecode().parameters().len() {
+                    self.push_value(Value::Null);
+                }
+            }
+        }
+
+        // Push all captured variables onto the stack.
+        for capture in function.captures() {
+            self.push_capture(capture.clone());
+        }
+
+        // Allocate space for local variables.
+        for _ in function.captures().len()..function.bytecode().variables().len() {
+            self.push_value(Value::Null);
+        }
+
+        // Run the bytecode instructions.
+        self.run_instructions(&function.bytecode())?;
+
+        // Pop the function call and discard all allocated variables.
+        {
+            let call = self.calls.pop().unwrap();
+            // Pop the result of the function call off the top of the stack.
+            let result = self.pop_value();
+            // Pop and discard all variables allocated for the function call.
+            while self.stack.len() > call.position() {
+                self.pop_value();
+            }
+
+            // Push the result back to the top of the stack.
+            self.push_value(result);
+        }
+
+        Ok(())
+    }
+
+    fn run_instructions(&mut self, bytecode: &Bytecode) -> Result<(), VmError> {
         let mut position = 0;
         let end = bytecode.instructions().len();
 
@@ -72,12 +142,12 @@ impl Vm {
                 Instruction::DuplicateTop(count) => self.instruction_duplicate_top(*count),
                 Instruction::Jump(destination) => next = *destination,
                 Instruction::JumpIf(destination) => {
-                    if self.pop().to_boolean() {
+                    if self.pop_value().to_boolean() {
                         next = *destination;
                     }
                 }
                 Instruction::JumpUnless(destination) => {
-                    if !self.pop().to_boolean() {
+                    if !self.pop_value().to_boolean() {
                         next = *destination;
                     }
                 }
@@ -90,6 +160,12 @@ impl Vm {
                 Instruction::PushString(value) => self.instruction_push_string(value.clone()),
                 Instruction::PushVariable(address) => self.instruction_push_variable(*address),
                 Instruction::AssignVariable(address) => self.instruction_assign_variable(*address),
+                Instruction::PushCapturedVariable(address) => {
+                    self.instruction_push_variable(*address)
+                }
+                Instruction::AssignCapturedVariable(address) => {
+                    self.instruction_assign_variable(*address)
+                }
                 Instruction::CreateList(size) => self.instruction_create_list(*size),
                 Instruction::CreateObject(size) => self.instruction_create_object(*size),
                 Instruction::CreateFunction(function) => {
@@ -118,29 +194,41 @@ impl Vm {
         Ok(())
     }
 
-    fn size(&self) -> usize {
+    fn top_position(&self) -> usize {
         self.stack.len()
     }
 
-    fn get(&self, position: usize) -> Value {
-        self.stack[position].clone()
+    fn get_value(&self, position: usize) -> Value {
+        self.stack[position].get()
     }
 
-    fn set(&mut self, position: usize, value: Value) {
-        self.stack[position] = value;
+    fn set_value(&mut self, position: usize, value: Value) {
+        match &self.stack[position] {
+            StackValue::Value(..) => self.stack[position] = StackValue::Value(value),
+            StackValue::Capture(capture) => capture.borrow_mut().value = value,
+        }
     }
 
-    fn get_variable(&self, address: usize) -> Value {
-        let position = self.top_call_position();
-        self.get(position + address)
+    fn capture_value(&mut self, position: usize) -> SharedMutable<Capture> {
+        match self.stack[position].clone() {
+            StackValue::Value(value) => {
+                let capture = SharedMutable::new(Capture { value });
+                self.stack[position] = StackValue::Capture(capture.clone());
+                capture
+            }
+            StackValue::Capture(capture) => capture,
+        }
     }
 
-    fn set_variable(&mut self, address: usize, value: Value) {
-        let position = self.top_call_position();
-        self.set(position + address, value);
+    fn push_value(&mut self, value: Value) {
+        self.push_stack_value(StackValue::Value(value));
     }
 
-    fn push(&mut self, value: Value) {
+    fn push_capture(&mut self, capture: SharedMutable<Capture>) {
+        self.push_stack_value(StackValue::Capture(capture));
+    }
+
+    fn push_stack_value(&mut self, value: StackValue) {
         if DEBUG {
             println!("DEBUG:   Push -> {:?}", value);
         }
@@ -152,7 +240,7 @@ impl Vm {
         }
     }
 
-    fn pop(&mut self) -> Value {
+    fn pop_value(&mut self) -> Value {
         let result = self
             .stack
             .pop()
@@ -164,10 +252,10 @@ impl Vm {
             println!("DEBUG:   Size -> {:?}", self.stack.len());
         }
 
-        result
+        result.get()
     }
 
-    fn top(&self) -> Value {
+    fn top_value(&self) -> Value {
         let result = self
             .stack
             .last()
@@ -178,27 +266,17 @@ impl Vm {
             println!("DEBUG:   Size -> {:?}", self.stack.len());
         }
 
-        result.clone()
+        result.get()
     }
 
-    fn push_call(&mut self, function: SharedImmutable<Function>, argument_count: usize) {
-        let position = self.size();
-        let call = Call::new(function, position - argument_count);
-        self.calls.push(call);
+    fn get_variable(&self, address: usize) -> Value {
+        let position = self.top_call_position();
+        self.get_value(position + address)
     }
 
-    fn pop_call(&mut self) -> Call {
-        let call = self.calls.pop().unwrap();
-        // Pop the result of the function call off the top of the stack.
-        let result = self.pop();
-        // Pop and discard all variables allocated for the function call.
-        while self.stack.len() > call.position() {
-            self.pop();
-        }
-
-        // Push the result back to the top of the stack.
-        self.push(result);
-        call
+    fn set_variable(&mut self, address: usize, value: Value) {
+        let position = self.top_call_position();
+        self.set_value(position + address, value);
     }
 
     fn top_call(&self) -> Option<&Call> {
@@ -210,51 +288,51 @@ impl Vm {
     }
 
     fn instruction_pop(&mut self) {
-        self.pop();
+        self.pop_value();
     }
 
     fn instruction_duplicate(&mut self) {
-        let value = self.top();
-        self.push(value);
+        let value = self.top_value();
+        self.push_value(value);
     }
 
     fn instruction_duplicate_top(&mut self, count: usize) {
-        for i in self.size() - count..self.size() {
-            self.push(self.stack[i].clone());
+        for i in self.top_position() - count..self.top_position() {
+            self.push_value(self.stack[i].get());
         }
     }
 
     fn instruction_is_null(&mut self) {
-        let value = self.pop();
-        self.push(Value::Boolean(matches!(value, Value::Null)));
+        let value = self.pop_value();
+        self.push_value(Value::Boolean(matches!(value, Value::Null)));
     }
 
     fn instruction_push_null(&mut self) {
-        self.push(Value::Null);
+        self.push_value(Value::Null);
     }
 
     fn instruction_push_boolean(&mut self, value: bool) {
-        self.push(Value::Boolean(value));
+        self.push_value(Value::Boolean(value));
     }
 
     fn instruction_push_int(&mut self, value: i64) {
-        self.push(Value::Int(value));
+        self.push_value(Value::Int(value));
     }
 
     fn instruction_push_float(&mut self, value: f64) {
-        self.push(Value::Float(value));
+        self.push_value(Value::Float(value));
     }
 
     fn instruction_push_string(&mut self, value: SharedImmutable<String>) {
-        self.push(Value::String(value));
+        self.push_value(Value::String(value));
     }
 
     fn instruction_push_variable(&mut self, address: usize) {
-        self.push(self.get_variable(address));
+        self.push_value(self.get_variable(address));
     }
 
     fn instruction_assign_variable(&mut self, address: usize) {
-        let value = self.pop();
+        let value = self.pop_value();
         self.set_variable(address, value);
     }
 
@@ -262,30 +340,37 @@ impl Vm {
         let mut list = List::new();
         list.reserve(size);
         for _ in 0..size {
-            list.push(self.pop());
+            list.push(self.pop_value());
         }
 
-        self.push(Value::List(list.into()));
+        self.push_value(Value::List(list.into()));
     }
 
     fn instruction_create_object(&mut self, size: usize) {
         let mut object = Object::new();
         object.reserve(size);
         for _ in 0..size {
-            let key = self.pop();
-            let value = self.pop();
+            let key = self.pop_value();
+            let value = self.pop_value();
             object.set(value.clone(), key.clone());
         }
 
-        self.push(Value::Object(object.into()));
+        self.push_value(Value::Object(object.into()));
     }
 
     fn instruction_create_function(&mut self, procedure: SharedImmutable<Procedure>) {
-        self.push(Value::Function(Function::new(procedure).into()));
+        let mut captures = Vec::new();
+        for variable in procedure.bytecode().variables() {
+            if let VariableVariant::Capture { offset } = variable.variant {
+                captures.push(self.capture_value(self.top_position() - offset));
+            }
+        }
+
+        self.push_value(Value::Function(Function::new(procedure, captures).into()));
     }
 
     fn instruction_call(&mut self, argument_count: usize) -> Result<(), VmError> {
-        let target = self.pop();
+        let target = self.pop_value();
         let function = match target {
             Value::Function(function) => function,
             _ => {
@@ -299,16 +384,12 @@ impl Vm {
             }
         };
 
-        self.push_call(function.clone(), argument_count);
-        self.run_with_arguments(function.bytecode(), argument_count)?;
-        self.pop_call();
-
-        Ok(())
+        self.run_function(&function, argument_count)
     }
 
     fn instruction_binary_operation(&mut self, instruction: &Instruction) -> Result<(), VmError> {
-        let right = self.pop();
-        let left = self.pop();
+        let right = self.pop_value();
+        let left = self.pop_value();
 
         let result = match (&left, &right) {
             (Value::Int(left), Value::Int(right)) => match instruction {
@@ -391,7 +472,7 @@ impl Vm {
         });
 
         if let Some(result) = result {
-            self.push(result);
+            self.push_value(result);
             Ok(())
         } else {
             Err(VmError::new(
@@ -406,8 +487,8 @@ impl Vm {
     }
 
     fn instruction_get_index(&mut self) -> Result<(), VmError> {
-        let index = self.pop();
-        let target = self.pop();
+        let index = self.pop_value();
+        let target = self.pop_value();
         let value = match target {
             Value::List(list) => list.borrow().get(index)?,
             Value::Object(object) => object.borrow().get(index),
@@ -421,14 +502,14 @@ impl Vm {
             }
         };
 
-        self.push(value);
+        self.push_value(value);
         Ok(())
     }
 
     fn instruction_set_index(&mut self) -> Result<(), VmError> {
-        let value = self.pop();
-        let index = self.pop();
-        let target = self.pop();
+        let value = self.pop_value();
+        let index = self.pop_value();
+        let target = self.pop_value();
 
         match target {
             Value::List(list) => list.borrow_mut().set(index, value)?,
@@ -447,7 +528,7 @@ impl Vm {
     }
 
     fn instruction_echo(&mut self) {
-        println!("{}", self.pop().to_string());
+        println!("{}", self.pop_value());
     }
 }
 

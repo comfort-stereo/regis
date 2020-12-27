@@ -2,8 +2,9 @@ use std::fmt::{Display, Formatter, Result as FormatResult};
 use std::hash::{Hash, Hasher};
 
 use crate::bytecode::{Bytecode, Procedure};
-use crate::shared::SharedImmutable;
+use crate::shared::{SharedImmutable, SharedMutable};
 
+use super::closure::Capture;
 use super::rid::rid;
 use super::value::ValueType;
 
@@ -11,6 +12,7 @@ use super::value::ValueType;
 pub struct Function {
     id: usize,
     procedure: SharedImmutable<Procedure>,
+    captures: Vec<SharedMutable<Capture>>,
 }
 
 impl PartialEq for Function {
@@ -37,10 +39,14 @@ impl Display for Function {
 }
 
 impl Function {
-    pub fn new(procedure: SharedImmutable<Procedure>) -> Self {
+    pub fn new(
+        procedure: SharedImmutable<Procedure>,
+        captures: Vec<SharedMutable<Capture>>,
+    ) -> Self {
         Self {
             id: rid(),
             procedure,
+            captures,
         }
     }
 
@@ -58,5 +64,9 @@ impl Function {
 
     pub fn bytecode(&self) -> &Bytecode {
         &self.procedure.bytecode()
+    }
+
+    pub fn captures(&self) -> &Vec<SharedMutable<Capture>> {
+        &self.captures
     }
 }

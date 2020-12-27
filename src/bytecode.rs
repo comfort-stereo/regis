@@ -1,20 +1,22 @@
 mod builder;
 mod instruction;
 mod procedure;
+mod variable;
 
 use std::fmt::{Debug, Formatter, Result as FormatResult};
 
 use crate::ast::base::AstModule;
 use crate::ast::Ast;
-use crate::shared::SharedImmutable;
 
 pub use builder::Builder;
 pub use instruction::Instruction;
 pub use procedure::Procedure;
+pub use variable::{Parameter, Variable, VariableVariant};
 
 pub struct Bytecode {
     instructions: Vec<Instruction>,
-    variables: Vec<SharedImmutable<String>>,
+    parameters: Vec<Parameter>,
+    variables: Vec<Variable>,
 }
 
 impl Debug for Bytecode {
@@ -27,9 +29,14 @@ impl Debug for Bytecode {
 }
 
 impl Bytecode {
-    pub fn new(instructions: Vec<Instruction>, variables: Vec<SharedImmutable<String>>) -> Self {
+    pub fn new(
+        instructions: Vec<Instruction>,
+        parameters: Vec<Parameter>,
+        variables: Vec<Variable>,
+    ) -> Self {
         Self {
             instructions,
+            parameters,
             variables,
         }
     }
@@ -44,7 +51,11 @@ impl Bytecode {
         &self.instructions
     }
 
-    pub fn variables(&self) -> &Vec<SharedImmutable<String>> {
+    pub fn parameters(&self) -> &Vec<Parameter> {
+        &self.parameters
+    }
+
+    pub fn variables(&self) -> &Vec<Variable> {
         &self.variables
     }
 }
