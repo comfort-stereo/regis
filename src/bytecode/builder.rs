@@ -1,26 +1,39 @@
+mod base;
+mod expression;
+mod marker;
+mod operator;
+mod statement;
+
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use crate::shared::SharedImmutable;
 
-use super::super::bytecode::Bytecode;
-use super::super::instruction::Instruction;
-use super::marker::Marker;
+use super::instruction::Instruction;
+use super::Bytecode;
+
+use marker::Marker;
 
 type Scope = HashMap<SharedImmutable<String>, usize>;
 
 #[derive(Debug)]
 pub struct Builder {
     instructions: Vec<Instruction>,
-    variable_count: usize,
+    variables: Vec<SharedImmutable<String>>,
     markers: BTreeMap<usize, HashSet<Marker>>,
     scopes: Vec<Scope>,
+}
+
+impl Default for Builder {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Builder {
     pub fn new() -> Self {
         Self {
             instructions: Vec::new(),
-            variable_count: 0,
+            variables: Vec::new(),
             markers: BTreeMap::new(),
             scopes: vec![HashMap::new()],
         }
@@ -56,13 +69,13 @@ impl Builder {
     }
 
     pub fn add_variable(&mut self, name: SharedImmutable<String>) -> usize {
-        let address = self.variable_count;
+        let address = self.variables.len();
+        self.variables.push(name.clone());
         self.scopes
             .last_mut()
             .expect("There was no scope to add a variable to.")
-            .insert(name.clone(), address);
+            .insert(name, address);
 
-        self.variable_count += 1;
         address
     }
 
@@ -76,16 +89,8 @@ impl Builder {
         panic!("No variable '{}' was found in scope.", name);
     }
 
-    pub fn build(mut self) -> Bytecode {
-        self.finalize();
-        Bytecode::new(self.instructions, self.variable_count)
-    }
-
     pub fn mark(&mut self, line: usize, marker: Marker) {
-        if !self.markers.contains_key(&line) {
-            self.markers.insert(line, HashSet::new());
-        }
-
+        self.markers.entry(line).or_insert_with(HashSet::new);
         self.markers
             .get_mut(&line)
             .map(|group| group.insert(marker));
@@ -96,6 +101,11 @@ impl Builder {
             .get(&line)
             .map(|group| group.contains(&marker))
             .unwrap_or(false)
+    }
+
+    pub fn build(mut self) -> Bytecode {
+        self.finalize();
+        Bytecode::new(self.instructions, self.variables)
     }
 
     fn finalize(&mut self) {

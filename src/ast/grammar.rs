@@ -28,19 +28,15 @@ impl Default for ParseContext {
 }
 
 pub fn parse(rule: GrammarRule, code: &str) -> Result<GrammarPair, GrammarError> {
-    let pairs = GrammarParser::parse(rule, code)?.into_iter();
-    for pair in pairs {
-        return Ok(pair);
-    }
-
-    unreachable!();
+    let mut pairs = GrammarParser::parse(rule, code)?;
+    Ok(pairs.next().unwrap())
 }
 
 pub fn content<'a>(pair: &GrammarPair<'a>) -> String {
     pair.as_str().trim().into()
 }
 
-pub fn extract<'a>(pair: GrammarPair<'a>) -> (AstNodeInfo, GrammarPairs<'a>) {
+pub fn extract(pair: GrammarPair) -> (AstNodeInfo, GrammarPairs) {
     let info = AstNodeInfo::new(&pair);
     let inner = pair.into_inner();
     (info, inner)

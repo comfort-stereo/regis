@@ -1,4 +1,4 @@
-use std::fmt::{Display, Formatter, Result};
+use std::fmt::{Display, Formatter, Result as FormatResult};
 use std::hash::{Hash, Hasher};
 
 use crate::shared::{SharedImmutable, SharedMutable};
@@ -69,6 +69,25 @@ impl Hash for Value {
     }
 }
 
+impl Display for Value {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> FormatResult {
+        write!(
+            formatter,
+            "{}",
+            match self {
+                Self::Null => "null".into(),
+                Self::Boolean(value) => value.to_string(),
+                Self::Int(value) => value.to_string(),
+                Self::Float(value) => value.to_string(),
+                Self::String(value) => (**value).clone(),
+                Self::List(value) => value.borrow().to_string(),
+                Self::Object(value) => value.borrow().to_string(),
+                Self::Function(value) => value.to_string(),
+            }
+        )
+    }
+}
+
 impl Value {
     pub fn type_of(&self) -> ValueType {
         match self {
@@ -95,19 +114,6 @@ impl Value {
             Self::Function(value) => value.to_boolean(),
         }
     }
-
-    pub fn to_string(&self) -> String {
-        match self {
-            Self::Null => "null".into(),
-            Self::Boolean(value) => value.to_string(),
-            Self::Int(value) => value.to_string(),
-            Self::Float(value) => value.to_string(),
-            Self::String(value) => (**value).clone(),
-            Self::List(value) => value.borrow().to_string(),
-            Self::Object(value) => value.borrow().to_string(),
-            Self::Function(value) => value.to_string(),
-        }
-    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -123,7 +129,7 @@ pub enum ValueType {
 }
 
 impl Display for ValueType {
-    fn fmt(&self, formatter: &mut Formatter) -> Result {
+    fn fmt(&self, formatter: &mut Formatter) -> FormatResult {
         match self {
             Self::Null => write!(formatter, "null"),
             Self::Boolean => write!(formatter, "boolean"),

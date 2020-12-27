@@ -1,6 +1,6 @@
 use crate::ast::base::{AstBlock, AstModule};
 
-use super::builder::Builder;
+use super::Builder;
 
 impl Builder {
     pub fn emit_module(&mut self, AstModule { statements, .. }: &AstModule) {

@@ -8,8 +8,8 @@ use crate::ast::statement::{
 };
 
 use super::super::instruction::Instruction;
-use super::builder::Builder;
 use super::marker::Marker;
+use super::Builder;
 
 impl Builder {
     pub fn emit_statement(&mut self, variant: &AstStatementVariant) {

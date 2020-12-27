@@ -40,7 +40,7 @@ impl AstExpressionVariant {
             GrammarRule::function => Self::Function(AstFunction::parse(pair, context).into()),
             GrammarRule::lambda => Self::Lambda(AstLambda::parse(pair, context).into()),
             GrammarRule::wrapped => Self::Wrapped(AstWrapped::parse(pair, context).into()),
-            GrammarRule::chain => Self::Chain(AstChainVariant::parse(pair, context).into()),
+            GrammarRule::chain => Self::Chain(AstChainVariant::parse(pair, context)),
             GrammarRule::binary_operations => {
                 Self::BinaryOperation(AstBinaryOperation::parse(pair, context).into())
             }
@@ -340,9 +340,9 @@ impl AstBinaryOperation {
                 AstExpressionVariant::BinaryOperation(
                     Self {
                         info: AstNodeInfo::new(&pair),
-                        left: left.into(),
+                        left,
                         operator,
-                        right: right.into(),
+                        right,
                     }
                     .into(),
                 )

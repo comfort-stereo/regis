@@ -1,3 +1,4 @@
+use std::fmt::{Display, Formatter, Result as FormatResult};
 use std::hash::{Hash, Hasher};
 
 use crate::bytecode::{Bytecode, Procedure};
@@ -26,6 +27,15 @@ impl Hash for Function {
     }
 }
 
+impl Display for Function {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> FormatResult {
+        match self.name() {
+            Some(name) => write!(formatter, "<function:{}>", *name),
+            None => write!(formatter, "<function>"),
+        }
+    }
+}
+
 impl Function {
     pub fn new(procedure: SharedImmutable<Procedure>) -> Self {
         Self {
@@ -40,13 +50,6 @@ impl Function {
 
     pub fn to_boolean(&self) -> bool {
         true
-    }
-
-    pub fn to_string(&self) -> String {
-        match self.name() {
-            Some(name) => format!("<function:{}>", *name),
-            None => "<function>".into(),
-        }
     }
 
     pub fn name(&self) -> Option<SharedImmutable<String>> {

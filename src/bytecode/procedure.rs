@@ -1,6 +1,6 @@
 use crate::shared::SharedImmutable;
 
-use super::bytecode::Bytecode;
+use super::Bytecode;
 
 #[derive(Debug)]
 pub struct Procedure {

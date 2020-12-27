@@ -46,5 +46,5 @@ fn unescape_unicode(characters: &mut VecDeque<char>) -> Option<char> {
         }
     }
 
-    u32::from_str_radix(&result, 16).map_or(None, |value| char::from_u32(value))
+    u32::from_str_radix(&result, 16).map_or(None, char::from_u32)
 }

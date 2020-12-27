@@ -60,7 +60,7 @@ impl AstStatementVariant {
                 AstVariableAssignmentStatement::parse(pair, context).into(),
             ),
             GrammarRule::chain_assignment_statement => Self::AstChainAssignmentStatement(
-                AstChainAssignmentStatementVariant::parse(pair, context).into(),
+                AstChainAssignmentStatementVariant::parse(pair, context),
             ),
             GrammarRule::expression_statement => {
                 Self::ExpressionStatement(AstExpressionStatement::parse(pair, context).into())

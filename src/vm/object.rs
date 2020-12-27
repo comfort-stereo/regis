@@ -1,4 +1,5 @@
 use indexmap::IndexMap;
+use std::fmt::{Display, Formatter, Result as FormatResult};
 use std::hash::{Hash, Hasher};
 
 use crate::shared::SharedMutable;
@@ -26,6 +27,26 @@ impl Hash for Object {
     }
 }
 
+impl Display for Object {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> FormatResult {
+        write!(
+            formatter,
+            "{{{}}}",
+            self.inner
+                .iter()
+                .map(|(key, value)| format!("{}: {}", key.to_string(), value.to_string()))
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    }
+}
+
+impl Default for Object {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Object {
     pub fn new() -> Self {
         Self {
@@ -42,15 +63,12 @@ impl Object {
         true
     }
 
-    pub fn to_string(&self) -> String {
-        format!(
-            "{{{}}}",
-            self.inner
-                .iter()
-                .map(|(key, value)| format!("{}: {}", key.to_string(), value.to_string()))
-                .collect::<Vec<_>>()
-                .join(", ")
-        )
+    pub fn len(&self) -> usize {
+        self.inner.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.inner.is_empty()
     }
 
     pub fn get(&self, index: Value) -> Value {
@@ -60,7 +78,7 @@ impl Object {
     }
 
     pub fn set(&mut self, index: Value, value: Value) {
-        self.inner.insert(index.clone(), value.clone());
+        self.inner.insert(index, value);
     }
 
     pub fn reserve(&mut self, capacity: usize) {
@@ -79,9 +97,5 @@ impl Object {
         }
 
         result.into()
-    }
-
-    pub fn len(&self) -> usize {
-        self.inner.len()
     }
 }

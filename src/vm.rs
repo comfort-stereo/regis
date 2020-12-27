@@ -1,12 +1,18 @@
+mod error;
+mod function;
+mod list;
+mod object;
+mod rid;
+mod value;
+
+pub use error::{VmError, VmErrorVariant};
+pub use function::Function;
+pub use list::List;
+pub use object::Object;
+pub use value::{Value, ValueType};
+
 use crate::bytecode::{Bytecode, Instruction, Procedure};
 use crate::shared::SharedImmutable;
-
-use super::error::VmError;
-use super::function::Function;
-use super::list::List;
-use super::object::Object;
-use super::value::Value;
-use super::VmErrorVariant;
 
 static DEBUG: bool = false;
 
@@ -14,6 +20,12 @@ static DEBUG: bool = false;
 pub struct Vm {
     stack: Vec<Value>,
     calls: Vec<Call>,
+}
+
+impl Default for Vm {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Vm {
@@ -35,15 +47,16 @@ impl Vm {
     ) -> Result<(), VmError> {
         // Any arguments should be allocated on the stack already.
         // Allocate space for all other variables.
-        for _ in argument_count..bytecode.variable_count() {
+        for _ in argument_count..bytecode.variables().len() {
             self.push(Value::Null);
         }
 
         let mut position = 0;
-        let end = bytecode.size();
+        let end = bytecode.instructions().len();
 
         while position < end {
             let instruction = bytecode
+                .instructions()
                 .get(position)
                 .expect("Undefined bytecode position reached.");
             let mut next = position + 1;
@@ -119,7 +132,7 @@ impl Vm {
 
     fn get_variable(&self, address: usize) -> Value {
         let position = self.top_call_position();
-        self.get(position + address).clone()
+        self.get(position + address)
     }
 
     fn set_variable(&mut self, address: usize, value: Value) {
@@ -213,10 +226,7 @@ impl Vm {
 
     fn instruction_is_null(&mut self) {
         let value = self.pop();
-        self.push(Value::Boolean(match value {
-            Value::Null => true,
-            _ => false,
-        }));
+        self.push(Value::Boolean(matches!(value, Value::Null)));
     }
 
     fn instruction_push_null(&mut self) {

@@ -1,3 +1,4 @@
+use std::fmt::{Display, Formatter, Result as FormatResult};
 use std::hash::{Hash, Hasher};
 
 use crate::shared::SharedMutable;
@@ -27,6 +28,26 @@ impl Hash for List {
     }
 }
 
+impl Display for List {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> FormatResult {
+        write!(
+            formatter,
+            "[{}]",
+            self.inner
+                .iter()
+                .map(|value| value.to_string())
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    }
+}
+
+impl Default for List {
+    fn default() -> Self {
+        List::new()
+    }
+}
+
 impl List {
     pub fn new() -> Self {
         Self {
@@ -43,15 +64,12 @@ impl List {
         true
     }
 
-    pub fn to_string(&self) -> String {
-        format!(
-            "[{}]",
-            self.inner
-                .iter()
-                .map(|value| value.to_string())
-                .collect::<Vec<_>>()
-                .join(", ")
-        )
+    pub fn len(&self) -> usize {
+        self.inner.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.inner.is_empty()
     }
 
     pub fn get(&self, index: Value) -> Result<Value, VmError> {
@@ -129,9 +147,5 @@ impl List {
 
     pub fn push(&mut self, value: Value) {
         self.inner.push(value)
-    }
-
-    pub fn len(&self) -> usize {
-        self.inner.len()
     }
 }

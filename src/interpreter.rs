@@ -1,12 +1,20 @@
+mod error;
+
+pub use error::InterpreterError;
+
 use crate::ast::base::AstModule;
 use crate::ast::Ast;
-use crate::bytecode::compile_module;
+use crate::bytecode::Bytecode;
 use crate::vm::Vm;
-
-use super::InterpreterError;
 
 pub struct Interpreter {
     vm: Vm,
+}
+
+impl Default for Interpreter {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Interpreter {
@@ -22,10 +30,7 @@ impl Interpreter {
             }
         };
 
-        let bytecode = compile_module(&ast);
-
-        self.vm
-            .run(&bytecode)
-            .map_err(|error| InterpreterError::VmError(error))
+        let bytecode = Bytecode::compile_module(&ast);
+        self.vm.run(&bytecode).map_err(InterpreterError::VmError)
     }
 }

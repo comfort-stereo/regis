@@ -5,9 +5,9 @@ use crate::ast::expression::{
 };
 use crate::ast::operator::BinaryOperator;
 
-use super::super::builder::Builder;
 use super::super::instruction::Instruction;
 use super::super::procedure::Procedure;
+use super::Builder;
 
 impl Builder {
     pub fn emit_expression(&mut self, expression: &AstExpressionVariant) {
