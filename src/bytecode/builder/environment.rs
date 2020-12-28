@@ -1,9 +1,8 @@
 use std::collections::HashMap;
 
-use crate::bytecode::variable::VariableVariant;
 use crate::shared::{SharedImmutable, SharedMutable};
 
-use super::super::variable::{Parameter, Variable};
+use super::super::variable::{Parameter, Variable, VariableLocation, VariableVariant};
 
 type Scope = HashMap<SharedImmutable<String>, usize>;
 
@@ -46,6 +45,10 @@ impl Environment {
         &self.variables
     }
 
+    pub fn size(&self) -> usize {
+        self.parameters.len() + self.variables.len()
+    }
+
     pub fn push_scope(&mut self) {
         self.scopes.push(Scope::new());
     }
@@ -61,7 +64,7 @@ impl Environment {
     pub fn add_parameter(&mut self, parameter: Parameter) -> usize {
         assert!(self.variables.is_empty());
         let name = parameter.name.clone();
-        let address = self.parameters.len();
+        let address = self.size();
         self.parameters.push(parameter);
         self.scopes
             .last_mut()
@@ -73,7 +76,7 @@ impl Environment {
 
     pub fn add_variable(&mut self, variable: Variable) -> usize {
         let name = variable.name.clone();
-        let address = self.parameters.len() + self.variables.len();
+        let address = self.size();
         self.variables.push(variable);
         self.scopes
             .last_mut()
@@ -84,54 +87,48 @@ impl Environment {
     }
 
     pub fn get_or_capture_variable_address(&mut self, name: &SharedImmutable<String>) -> usize {
-        self.try_get_or_capture_variable_address(name)
-            .unwrap_or_else(|| panic!("Variable '{}' was not found in scope.", name))
+        let location = self
+            .get_variable_location(name)
+            .unwrap_or_else(|| panic!("No local '{}' found in scope.", name));
+
+        // If the variable is in the current call, return the local address.
+        if location.ascend == 0 {
+            return location.address;
+        }
+
+        // If the variable is in a containing environment, add a capture variable pointing to its
+        // location and return the capture variable's address.
+        self.add_variable(Variable {
+            name: name.clone(),
+            variant: VariableVariant::Capture { location },
+        })
     }
 
-    fn try_get_or_capture_variable_address(
-        &mut self,
+    pub fn get_variable_location(
+        &self,
         name: &SharedImmutable<String>,
-    ) -> Option<usize> {
+    ) -> Option<VariableLocation> {
+        self.get_variable_location_aux(name, 0)
+    }
+
+    fn get_variable_location_aux(
+        &self,
+        name: &SharedImmutable<String>,
+        ascend: usize,
+    ) -> Option<VariableLocation> {
         for scope in self.scopes.iter().rev() {
             if let Some(address) = scope.get(name) {
-                return Some(*address);
+                return Some(VariableLocation {
+                    ascend,
+                    address: *address,
+                });
             }
         }
 
         if let Some(parent) = &self.parent {
-            let offset = parent
-                .borrow_mut()
-                .try_get_capture_variable_address(name, 0);
-
-            if let Some(offset) = offset {
-                return Some(self.add_variable(Variable {
-                    name: name.clone(),
-                    variant: VariableVariant::Capture { offset },
-                }));
-            }
+            parent.borrow().get_variable_location_aux(name, ascend + 1)
+        } else {
+            None
         }
-
-        None
-    }
-
-    fn try_get_capture_variable_address(
-        &mut self,
-        name: &SharedImmutable<String>,
-        offset: usize,
-    ) -> Option<usize> {
-        let end = offset + self.variables.len();
-        for scope in self.scopes.iter().rev() {
-            if let Some(address) = scope.get(name) {
-                return Some(end - address);
-            }
-        }
-
-        if let Some(parent) = &self.parent {
-            return parent
-                .borrow_mut()
-                .try_get_capture_variable_address(name, end);
-        }
-
-        None
     }
 }

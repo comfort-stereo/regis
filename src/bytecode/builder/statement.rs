@@ -6,10 +6,9 @@ use crate::ast::statement::{
     AstLoopStatement, AstReturnStatement, AstStatementVariant, AstVariableAssignmentStatement,
     AstVariableDeclarationStatement, AstWhileStatement,
 };
-use crate::bytecode::variable::VariableVariant;
 
 use super::super::instruction::Instruction;
-use super::super::variable::Variable;
+use super::super::variable::{Variable, VariableVariant};
 use super::marker::Marker;
 use super::Builder;
 

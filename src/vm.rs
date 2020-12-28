@@ -12,12 +12,12 @@ pub use list::List;
 pub use object::Object;
 pub use value::{Value, ValueType};
 
-use crate::bytecode::{Bytecode, Instruction, Procedure, VariableVariant};
+use crate::bytecode::{Bytecode, Instruction, Procedure, VariableLocation, VariableVariant};
 use crate::shared::{SharedImmutable, SharedMutable};
 
 use closure::Capture;
 
-static DEBUG: bool = true;
+static DEBUG: bool = false;
 
 #[derive(Debug, Clone)]
 enum StackValue {
@@ -132,7 +132,7 @@ impl Vm {
             let mut next = position + 1;
 
             if DEBUG {
-                println!("DEBUG: {} -> {:?}:", position, instruction);
+                println!("DEBUG: {} -> {:#?}:", position, instruction);
             }
 
             match instruction {
@@ -209,10 +209,24 @@ impl Vm {
         }
     }
 
+    fn get_variable_position_from_location(
+        &self,
+        VariableLocation { ascend, address }: &VariableLocation,
+    ) -> usize {
+        if *ascend >= self.calls.len() {
+            *address
+        } else {
+            self.calls
+                .get(self.calls.len() - 1 - ascend)
+                .map_or(0, |call| call.position())
+                + address
+        }
+    }
+
     fn capture_value(&mut self, position: usize) -> SharedMutable<Capture> {
         match self.stack[position].clone() {
             StackValue::Value(value) => {
-                let capture = SharedMutable::new(Capture { value });
+                let capture = SharedMutable::new(Capture { value, position });
                 self.stack[position] = StackValue::Capture(capture.clone());
                 capture
             }
@@ -230,13 +244,13 @@ impl Vm {
 
     fn push_stack_value(&mut self, value: StackValue) {
         if DEBUG {
-            println!("DEBUG:   Push -> {:?}", value);
+            println!("DEBUG:   Push -> {:#?}", value);
         }
 
         self.stack.push(value);
 
         if DEBUG {
-            println!("DEBUG:   Size -> {:?}", self.stack.len());
+            println!("DEBUG:   Size -> {:#?}", self.stack.len());
         }
     }
 
@@ -247,9 +261,9 @@ impl Vm {
             .unwrap_or_else(|| panic!("No values exist to be popped off the stack."));
 
         if DEBUG {
-            println!("DEBUG:   Pop  -> {:?}", result);
-            println!("DEBUG:   TOS  -> {:?}", self.stack.last());
-            println!("DEBUG:   Size -> {:?}", self.stack.len());
+            println!("DEBUG:   Pop  -> {:#?}", result);
+            println!("DEBUG:   TOS  -> {:#?}", self.stack.last());
+            println!("DEBUG:   Size -> {:#?}", self.stack.len());
         }
 
         result.get()
@@ -361,8 +375,12 @@ impl Vm {
     fn instruction_create_function(&mut self, procedure: SharedImmutable<Procedure>) {
         let mut captures = Vec::new();
         for variable in procedure.bytecode().variables() {
-            if let VariableVariant::Capture { offset } = variable.variant {
-                captures.push(self.capture_value(self.top_position() - offset));
+            if let VariableVariant::Capture { location, .. } = &variable.variant {
+                if location.ascend != 0 {
+                    captures.push(
+                        self.capture_value(self.get_variable_position_from_location(location)),
+                    );
+                }
             }
         }
 

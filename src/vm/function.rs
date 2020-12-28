@@ -1,4 +1,4 @@
-use std::fmt::{Display, Formatter, Result as FormatResult};
+use std::fmt::{Debug, Display, Formatter, Result as FormatResult};
 use std::hash::{Hash, Hasher};
 
 use crate::bytecode::{Bytecode, Procedure};
@@ -8,7 +8,6 @@ use super::closure::Capture;
 use super::rid::rid;
 use super::value::ValueType;
 
-#[derive(Debug)]
 pub struct Function {
     id: usize,
     procedure: SharedImmutable<Procedure>,
@@ -35,6 +34,20 @@ impl Display for Function {
             Some(name) => write!(formatter, "<function:{}>", *name),
             None => write!(formatter, "<function>"),
         }
+    }
+}
+
+impl Debug for Function {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> FormatResult {
+        write!(
+            formatter,
+            "fn {}() [{:?}]",
+            self.name().unwrap_or_else(|| String::from("").into()),
+            self.captures
+                .iter()
+                .map(|capture| capture.borrow().position)
+                .collect::<Vec<_>>(),
+        )
     }
 }
 

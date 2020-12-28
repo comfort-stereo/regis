@@ -14,19 +14,11 @@ pub struct Variable {
 #[derive(Debug, Clone)]
 pub enum VariableVariant {
     Local,
-    Capture { offset: usize },
+    Capture { location: VariableLocation },
 }
 
-// impl Variable {
-//     pub fn new(name: SharedImmutable<String>, variant: VariableVariant) -> Self {
-//         Self { name, variant }
-//     }
-
-//     pub fn name(&self) -> &SharedImmutable<String> {
-//         &self.name
-//     }
-
-//     pub fn variant(&self) -> &VariableVariant {
-//         &self.variant
-//     }
-// }
+#[derive(Debug, Clone)]
+pub struct VariableLocation {
+    pub ascend: usize,
+    pub address: usize,
+}

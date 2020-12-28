@@ -11,7 +11,7 @@ use crate::ast::Ast;
 pub use builder::Builder;
 pub use instruction::Instruction;
 pub use procedure::Procedure;
-pub use variable::{Parameter, Variable, VariableVariant};
+pub use variable::{Parameter, Variable, VariableLocation, VariableVariant};
 
 pub struct Bytecode {
     instructions: Vec<Instruction>,

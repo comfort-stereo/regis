@@ -3,6 +3,7 @@ use super::Value;
 #[derive(Debug, Clone)]
 pub struct Capture {
     pub value: Value,
+    pub position: usize,
 }
 
 #[derive(Debug)]
