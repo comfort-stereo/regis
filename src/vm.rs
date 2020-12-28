@@ -17,7 +17,7 @@ use crate::shared::{SharedImmutable, SharedMutable};
 
 use closure::Capture;
 
-static DEBUG: bool = false;
+static DEBUG: bool = true;
 
 #[derive(Debug, Clone)]
 enum StackValue {

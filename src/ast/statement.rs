@@ -247,7 +247,7 @@ impl AstFunctionStatement {
 #[derive(Debug)]
 pub struct AstVariableDeclarationStatement {
     pub info: AstNodeInfo,
-    pub identifier: Box<AstIdentifier>,
+    pub name: Box<AstIdentifier>,
     pub value: AstExpressionVariant,
 }
 
@@ -257,7 +257,7 @@ impl AstVariableDeclarationStatement {
         let (info, mut inner) = extract(pair);
         Self {
             info,
-            identifier: AstIdentifier::parse(inner.next().unwrap(), context).into(),
+            name: AstIdentifier::parse(inner.next().unwrap(), context).into(),
             value: AstExpressionVariant::parse(inner.next().unwrap(), context),
         }
     }
@@ -266,7 +266,7 @@ impl AstVariableDeclarationStatement {
 #[derive(Debug)]
 pub struct AstVariableAssignmentStatement {
     pub info: AstNodeInfo,
-    pub identifier: Box<AstIdentifier>,
+    pub name: Box<AstIdentifier>,
     pub operator: AssignmentOperator,
     pub value: AstExpressionVariant,
 }
@@ -277,7 +277,7 @@ impl AstVariableAssignmentStatement {
         let (info, mut inner) = extract(pair);
         Self {
             info,
-            identifier: AstIdentifier::parse(inner.next().unwrap(), context).into(),
+            name: AstIdentifier::parse(inner.next().unwrap(), context).into(),
             operator: AssignmentOperator::from_rule(&inner.next().unwrap().as_rule()),
             value: AstExpressionVariant::parse(inner.next().unwrap(), context),
         }

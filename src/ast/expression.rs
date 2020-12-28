@@ -20,7 +20,6 @@ pub enum AstExpressionVariant {
     List(Box<AstList>),
     Object(Box<AstObject>),
     Function(Box<AstFunction>),
-    Lambda(Box<AstLambda>),
     Wrapped(Box<AstWrapped>),
     Chain(AstChainVariant),
     BinaryOperation(Box<AstBinaryOperation>),
@@ -38,7 +37,6 @@ impl AstExpressionVariant {
             GrammarRule::list => Self::List(AstList::parse(pair, context).into()),
             GrammarRule::object => Self::Object(AstObject::parse(pair, context).into()),
             GrammarRule::function => Self::Function(AstFunction::parse(pair, context).into()),
-            GrammarRule::lambda => Self::Lambda(AstLambda::parse(pair, context).into()),
             GrammarRule::wrapped => Self::Wrapped(AstWrapped::parse(pair, context).into()),
             GrammarRule::chain => Self::Chain(AstChainVariant::parse(pair, context)),
             GrammarRule::binary_operations => {
@@ -258,51 +256,9 @@ impl AstKeyExpression {
 #[derive(Debug)]
 pub struct AstFunction {
     pub info: AstNodeInfo,
-    pub name: Box<AstIdentifier>,
+    pub name: Option<Box<AstIdentifier>>,
     pub parameters: Vec<AstIdentifier>,
     pub body: AstFunctionBodyVariant,
-}
-
-impl AstFunction {
-    pub fn parse(pair: GrammarPair, context: &ParseContext) -> Self {
-        assert_eq!(pair.as_rule(), GrammarRule::function);
-        let (info, mut inner) = extract(pair);
-        Self {
-            info,
-            name: AstIdentifier::parse(inner.next().unwrap(), context).into(),
-            parameters: inner
-                .next()
-                .unwrap()
-                .into_inner()
-                .map(|parameter| AstIdentifier::parse(parameter, context))
-                .collect(),
-            body: AstFunctionBodyVariant::parse(inner.next().unwrap(), context),
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct AstLambda {
-    pub info: AstNodeInfo,
-    pub parameters: Vec<AstIdentifier>,
-    pub body: AstFunctionBodyVariant,
-}
-
-impl AstLambda {
-    fn parse(pair: GrammarPair, context: &ParseContext) -> Self {
-        assert_eq!(pair.as_rule(), GrammarRule::lambda);
-        let (info, mut inner) = extract(pair);
-        Self {
-            info,
-            parameters: inner
-                .next()
-                .unwrap()
-                .into_inner()
-                .map(|parameter| AstIdentifier::parse(parameter, context))
-                .collect(),
-            body: AstFunctionBodyVariant::parse(inner.next().unwrap(), context),
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -316,6 +272,47 @@ impl AstFunctionBodyVariant {
         match pair.as_rule() {
             GrammarRule::block => Self::Block(AstBlock::parse(pair, context).into()),
             _ => Self::Expression(AstExpressionVariant::parse(pair, context)),
+        }
+    }
+}
+
+impl AstFunction {
+    pub fn parse(pair: GrammarPair, context: &ParseContext) -> Self {
+        assert_eq!(pair.as_rule(), GrammarRule::function);
+        let (info, mut inner) = extract(pair);
+
+        let first = inner.next().unwrap();
+        let (name, parameters, body) = match first.as_rule() {
+            GrammarRule::identifier => {
+                let name = Some(first);
+                let parameters = Some(inner.next().unwrap());
+                let body = inner.next().unwrap();
+                (name, parameters, body)
+            }
+            GrammarRule::parameters => {
+                let name = None;
+                let parameters = Some(first);
+                let body = inner.next().unwrap();
+                (name, parameters, body)
+            }
+            _ => {
+                let name = None;
+                let parameters = None;
+                let body = first;
+                (name, parameters, body)
+            }
+        };
+
+        Self {
+            info,
+            name: name.map(|name| AstIdentifier::parse(name, context).into()),
+            parameters: parameters.map_or_else(Vec::new, |parameter| {
+                parameter
+                    .into_inner()
+                    .map(|parameter| AstIdentifier::parse(parameter, context))
+                    .collect()
+            }),
+            body: AstFunctionBodyVariant::parse(body, context),
         }
     }
 }

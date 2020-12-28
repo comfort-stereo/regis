@@ -153,19 +153,24 @@ impl Builder {
         &mut self,
         AstFunctionStatement { function, .. }: &AstFunctionStatement,
     ) {
-        let name = &function.name.name;
-        let address = self.environment().borrow_mut().add_variable(Variable {
-            name: name.clone(),
-            variant: VariableVariant::Local,
-        });
         self.emit_function(function);
-        self.add(Instruction::AssignVariable(address));
+        if let Some(name) = &function.name {
+            let address = self.environment().borrow_mut().add_variable(Variable {
+                name: name.name.clone(),
+                variant: VariableVariant::Local,
+            });
+            self.add(Instruction::AssignVariable(address));
+        } else {
+            self.add(Instruction::Pop);
+        }
     }
 
     pub fn emit_variable_declaration_statement(
         &mut self,
         AstVariableDeclarationStatement {
-            identifier, value, ..
+            name: identifier,
+            value,
+            ..
         }: &AstVariableDeclarationStatement,
     ) {
         let name = &identifier.name;
@@ -180,7 +185,7 @@ impl Builder {
     pub fn emit_variable_assignment_statement(
         &mut self,
         AstVariableAssignmentStatement {
-            identifier,
+            name: identifier,
             operator,
             value,
             ..

@@ -1,8 +1,7 @@
 use crate::ast::expression::{
     AstBinaryOperation, AstBoolean, AstCall, AstChainVariant, AstDot, AstExpressionVariant,
     AstFloat, AstFunction, AstFunctionBodyVariant, AstIdentifier, AstIndex, AstInt,
-    AstKeyExpression, AstKeyVariant, AstLambda, AstList, AstNull, AstObject, AstPair, AstString,
-    AstWrapped,
+    AstKeyExpression, AstKeyVariant, AstList, AstNull, AstObject, AstPair, AstString, AstWrapped,
 };
 use crate::ast::operator::BinaryOperator;
 
@@ -23,7 +22,6 @@ impl Builder {
             AstExpressionVariant::List(list) => self.emit_list(list),
             AstExpressionVariant::Object(object) => self.emit_object(object),
             AstExpressionVariant::Function(function) => self.emit_function(function),
-            AstExpressionVariant::Lambda(lambda) => self.emit_lambda(lambda),
             AstExpressionVariant::Wrapped(wrapped) => self.emit_wrapped(wrapped),
             AstExpressionVariant::Chain(chain) => self.emit_chain(chain),
             AstExpressionVariant::BinaryOperation(binary_operation) => {
@@ -97,25 +95,10 @@ impl Builder {
             ..
         }: &AstFunction,
     ) {
-        self.emit_generic_function(Some(name), parameters, body);
-    }
-
-    pub fn emit_lambda(
-        &mut self,
-        AstLambda {
-            parameters, body, ..
-        }: &AstLambda,
-    ) {
-        self.emit_generic_function(None, parameters, body);
-    }
-
-    fn emit_generic_function(
-        &mut self,
-        name: Option<&AstIdentifier>,
-        parameters: &[AstIdentifier],
-        body: &AstFunctionBodyVariant,
-    ) {
-        let name = name.map(|name| name.name.clone());
+        let name = match name {
+            Some(identifier) => Some(identifier.name.clone()),
+            _ => None,
+        };
         let parameters = parameters
             .iter()
             .map(|parameter| parameter.name.clone())
@@ -129,7 +112,9 @@ impl Builder {
                 });
             }
             match body {
-                AstFunctionBodyVariant::Block(block) => builder.emit_block(&block),
+                AstFunctionBodyVariant::Block(block) => {
+                    builder.emit_function_block(&block);
+                }
                 AstFunctionBodyVariant::Expression(expression) => {
                     builder.emit_expression(&expression)
                 }

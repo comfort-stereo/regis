@@ -60,13 +60,19 @@ atom = _{
 }
 
 wrapped = { "(" ~ br? ~ expression ~ br? ~ ")" }
+
 list = { "[" ~ br? ~ (expression ~ br? ~ "," ~ br?)* ~ expression? ~ br? ~ "]" }
+
 object = { "{" ~ br? ~ (pair ~ br? ~ "," ~ br?)* ~ pair? ~ br? ~ "}" }
 pair = { key ~ br? ~ ":" ~ br? ~ expression }
 key = _{ identifier | string | key_expression }
 key_expression = { "[" ~ br? ~ expression ~ br? ~ "]" }
-function = { keyword_fn ~ br? ~ identifier ~ br? ~ "(" ~ br? ~ parameters ~ br? ~ ")" ~ (block | expression) }
-lambda = { "|" ~ br? ~ parameters ~ br? ~ "|" ~ (block | expression) }
+
+function = {
+    keyword_fn
+    ~ br? ~ (identifier? ~ br? ~ "(" ~ br? ~ parameters ~ br? ~ ")")?
+    ~ br? ~ (block | ("=>" ~ br? ~ expression))
+}
 parameters = { (identifier ~ br? ~ "," ~ br?)* ~ identifier? ~ br? }
 arguments = { (expression ~ br? ~ "," ~ br?)* ~ expression? ~ br? }
 
@@ -138,7 +144,6 @@ binary_operable_expression = _{
       wrapped
     | chain
     | function
-    | lambda
     | list
     | object
     | atom
@@ -147,7 +152,6 @@ binary_operable_expression = _{
 chainable_expression = _{
       wrapped
     | function
-    | lambda
     | list
     | object
     | atom
@@ -158,7 +162,6 @@ expression = _{
     | binary_operations
     | chain
     | function
-    | lambda
     | list
     | object
     | atom
@@ -209,7 +212,7 @@ terminator = _{ ";" | br | eoi }
 statement = _{
     br?
     ~ (
-        block_statement
+          block_statement
         | (execution_statement ~ terminator)
     )
     ~ br?
