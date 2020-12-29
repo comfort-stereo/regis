@@ -1,6 +1,6 @@
 use crate::shared::SharedImmutable;
 
-use super::base::AstBlock;
+use super::base::{AstBlock, AstIdentifier};
 use super::grammar::{
     content, extract, GrammarAssoc, GrammarOperator, GrammarPair, GrammarPrecClimber, GrammarRule,
     ParseContext,
@@ -16,7 +16,7 @@ pub enum AstExpressionVariant {
     Int(Box<AstInt>),
     Float(Box<AstFloat>),
     String(Box<AstString>),
-    Identifier(Box<AstIdentifier>),
+    Variable(Box<AstVariable>),
     List(Box<AstList>),
     Object(Box<AstObject>),
     Function(Box<AstFunction>),
@@ -33,7 +33,7 @@ impl AstExpressionVariant {
             GrammarRule::int => Self::Int(AstInt::parse(pair, context).into()),
             GrammarRule::float => Self::Float(AstFloat::parse(pair, context).into()),
             GrammarRule::string => Self::String(AstString::parse(pair, context).into()),
-            GrammarRule::identifier => Self::Identifier(AstIdentifier::parse(pair, context).into()),
+            GrammarRule::variable => Self::Variable(AstVariable::parse(pair, context).into()),
             GrammarRule::list => Self::List(AstList::parse(pair, context).into()),
             GrammarRule::object => Self::Object(AstObject::parse(pair, context).into()),
             GrammarRule::function => Self::Function(AstFunction::parse(pair, context).into()),
@@ -147,17 +147,18 @@ impl AstString {
 }
 
 #[derive(Debug)]
-pub struct AstIdentifier {
+pub struct AstVariable {
     pub info: AstNodeInfo,
-    pub name: SharedImmutable<String>,
+    pub name: AstIdentifier,
 }
 
-impl AstIdentifier {
-    pub fn parse(pair: GrammarPair, _: &ParseContext) -> Self {
-        assert_eq!(pair.as_rule(), GrammarRule::identifier);
+impl AstVariable {
+    fn parse(pair: GrammarPair, context: &ParseContext) -> Self {
+        assert_eq!(pair.as_rule(), GrammarRule::variable);
+        let (info, mut inner) = extract(pair);
         Self {
-            info: AstNodeInfo::new(&pair),
-            name: content(&pair).into(),
+            info,
+            name: AstIdentifier::parse(inner.next().unwrap(), context),
         }
     }
 }

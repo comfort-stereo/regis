@@ -1,7 +1,5 @@
-use super::base::AstBlock;
-use super::expression::{
-    AstChainVariant, AstDot, AstExpressionVariant, AstFunction, AstIdentifier, AstIndex,
-};
+use super::base::{AstBlock, AstIdentifier};
+use super::expression::{AstChainVariant, AstDot, AstExpressionVariant, AstFunction, AstIndex};
 use super::grammar::{extract, GrammarPair, GrammarRule, ParseContext};
 use super::node::AstNodeInfo;
 use super::operator::AssignmentOperator;
@@ -118,6 +116,7 @@ impl AstElseStatementNextVariant {
 
 impl AstElseStatement {
     pub fn parse(pair: GrammarPair, context: &ParseContext) -> Self {
+        assert_eq!(pair.as_rule(), GrammarRule::else_statement);
         let (info, mut inner) = extract(pair);
         Self {
             info,

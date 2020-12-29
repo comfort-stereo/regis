@@ -1,4 +1,6 @@
-use super::grammar::{extract, GrammarPair, GrammarRule, ParseContext};
+use crate::shared::SharedImmutable;
+
+use super::grammar::{content, extract, GrammarPair, GrammarRule, ParseContext};
 use super::node::AstNodeInfo;
 use super::statement::AstStatementVariant;
 
@@ -36,6 +38,22 @@ impl AstBlock {
             statements: inner
                 .map(|statement| AstStatementVariant::parse(statement, context))
                 .collect(),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct AstIdentifier {
+    pub info: AstNodeInfo,
+    pub text: SharedImmutable<String>,
+}
+
+impl AstIdentifier {
+    pub fn parse(pair: GrammarPair, _: &ParseContext) -> Self {
+        assert_eq!(pair.as_rule(), GrammarRule::identifier);
+        Self {
+            info: AstNodeInfo::new(&pair),
+            text: content(&pair).into(),
         }
     }
 }

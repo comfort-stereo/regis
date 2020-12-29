@@ -1,7 +1,8 @@
+use crate::ast::base::AstIdentifier;
 use crate::ast::expression::{
     AstBinaryOperation, AstBoolean, AstCall, AstChainVariant, AstDot, AstExpressionVariant,
-    AstFloat, AstFunction, AstFunctionBodyVariant, AstIdentifier, AstIndex, AstInt,
-    AstKeyExpression, AstKeyVariant, AstList, AstNull, AstObject, AstPair, AstString, AstWrapped,
+    AstFloat, AstFunction, AstFunctionBodyVariant, AstIndex, AstInt, AstKeyExpression,
+    AstKeyVariant, AstList, AstNull, AstObject, AstPair, AstString, AstVariable, AstWrapped,
 };
 use crate::ast::operator::BinaryOperator;
 
@@ -18,7 +19,7 @@ impl Builder {
             AstExpressionVariant::Int(int) => self.emit_int(int),
             AstExpressionVariant::Float(float) => self.emit_float(float),
             AstExpressionVariant::String(string) => self.emit_string(string),
-            AstExpressionVariant::Identifier(identifier) => self.emit_identifier(identifier),
+            AstExpressionVariant::Variable(variable) => self.emit_variable(variable),
             AstExpressionVariant::List(list) => self.emit_list(list),
             AstExpressionVariant::Object(object) => self.emit_object(object),
             AstExpressionVariant::Function(function) => self.emit_function(function),
@@ -50,11 +51,11 @@ impl Builder {
         self.add(Instruction::PushString(value.clone()));
     }
 
-    pub fn emit_identifier(&mut self, AstIdentifier { name, .. }: &AstIdentifier) {
+    pub fn emit_variable(&mut self, AstVariable { name, .. }: &AstVariable) {
         let address = self
             .environment()
             .borrow_mut()
-            .get_or_capture_variable_address(name);
+            .get_or_capture_variable_address(&name.text);
         self.add(Instruction::PushVariable(address));
     }
 
@@ -69,8 +70,8 @@ impl Builder {
     pub fn emit_object(&mut self, AstObject { pairs, .. }: &AstObject) {
         for AstPair { key, value, .. } in pairs.iter().rev() {
             match key {
-                AstKeyVariant::Identifier(AstIdentifier { name, .. }) => {
-                    self.add(Instruction::PushString(name.clone()))
+                AstKeyVariant::Identifier(AstIdentifier { text, .. }) => {
+                    self.add(Instruction::PushString(text.clone()))
                 }
                 AstKeyVariant::String(AstString { value, .. }) => {
                     self.add(Instruction::PushString(value.clone()))
@@ -96,12 +97,12 @@ impl Builder {
         }: &AstFunction,
     ) {
         let name = match name {
-            Some(identifier) => Some(identifier.name.clone()),
+            Some(name) => Some(name.text.clone()),
             _ => None,
         };
         let parameters = parameters
             .iter()
-            .map(|parameter| parameter.name.clone())
+            .map(|parameter| parameter.text.clone())
             .collect::<Vec<_>>();
 
         let bytecode = {
@@ -152,7 +153,7 @@ impl Builder {
         }: &AstDot,
     ) {
         self.emit_chain(target);
-        self.add(Instruction::PushString(property.name.clone()));
+        self.add(Instruction::PushString(property.text.clone()));
         self.add(Instruction::GetIndex);
     }
 

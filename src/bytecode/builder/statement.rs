@@ -155,7 +155,7 @@ impl Builder {
         self.emit_function(function);
         if let Some(name) = &function.name {
             let address = self.environment().borrow_mut().add_variable(Variable {
-                name: name.name.clone(),
+                name: name.text.clone(),
                 variant: VariableVariant::Local,
             });
             self.add(Instruction::AssignVariable(address));
@@ -166,15 +166,10 @@ impl Builder {
 
     pub fn emit_variable_declaration_statement(
         &mut self,
-        AstVariableDeclarationStatement {
-            name: identifier,
-            value,
-            ..
-        }: &AstVariableDeclarationStatement,
+        AstVariableDeclarationStatement { name, value, .. }: &AstVariableDeclarationStatement,
     ) {
-        let name = &identifier.name;
         let address = self.environment().borrow_mut().add_variable(Variable {
-            name: name.clone(),
+            name: name.text.clone(),
             variant: VariableVariant::Local,
         });
         self.emit_expression(value);
@@ -184,13 +179,13 @@ impl Builder {
     pub fn emit_variable_assignment_statement(
         &mut self,
         AstVariableAssignmentStatement {
-            name: identifier,
+            name,
             operator,
             value,
             ..
         }: &AstVariableAssignmentStatement,
     ) {
-        let name = &identifier.name;
+        let name = &name.text;
         if *operator != AssignmentOperator::Direct {
             let address = self
                 .environment()
@@ -275,7 +270,7 @@ impl Builder {
         }: &AstDotAssignmentStatement,
     ) {
         self.emit_chain(&dot.target);
-        self.add(Instruction::PushString(dot.property.name.clone()));
+        self.add(Instruction::PushString(dot.property.text.clone()));
 
         if *operator != AssignmentOperator::Direct {
             self.add(Instruction::DuplicateTop(2));

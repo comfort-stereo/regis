@@ -36,11 +36,13 @@ keyword = _{
     | keyword_continue
 }
 
-null = @{ keyword_null }
 identifier = @{ !keyword ~ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
+
+null = @{ keyword_null }
 boolean = @{ keyword_true | keyword_false }
 int = @{ "-"? ~ ("0" | ASCII_NONZERO_DIGIT ~ ASCII_DIGIT*) }
 float = @{ int ~ "." ~ ASCII_DIGIT+ }
+variable = { identifier }
 
 string = ${ "\"" ~ chars ~ "\"" }
 chars = @{ char* }
@@ -56,7 +58,7 @@ atom = _{
     | float
     | int
     | string
-    | identifier
+    | variable
 }
 
 wrapped = { "(" ~ br? ~ expression ~ br? ~ ")" }
