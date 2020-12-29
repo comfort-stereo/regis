@@ -11,7 +11,7 @@ use super::super::procedure::Procedure;
 use super::super::variable::Parameter;
 use super::Builder;
 
-impl Builder {
+impl<'parent> Builder<'parent> {
     pub fn emit_expression(&mut self, expression: &AstExpressionVariant) {
         match expression {
             AstExpressionVariant::Null(null) => self.emit_null(null),
@@ -52,10 +52,7 @@ impl Builder {
     }
 
     pub fn emit_variable(&mut self, AstVariable { name, .. }: &AstVariable) {
-        let address = self
-            .environment()
-            .borrow_mut()
-            .get_or_capture_variable_address(&name.text);
+        let address = self.get_or_capture_variable(&name.text);
         self.add(Instruction::PushVariable(address));
     }
 
@@ -106,9 +103,9 @@ impl Builder {
             .collect::<Vec<_>>();
 
         let bytecode = {
-            let mut builder = Builder::new_with_parent_environment(self.environment().clone());
+            let mut builder = Builder::new_child(&self);
             for parameter in &parameters {
-                builder.environment().borrow_mut().add_parameter(Parameter {
+                builder.add_parameter(Parameter {
                     name: parameter.clone(),
                 });
             }

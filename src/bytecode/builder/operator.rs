@@ -4,7 +4,7 @@ use crate::ast::operator::AssignmentOperator;
 use super::super::instruction::Instruction;
 use super::Builder;
 
-impl Builder {
+impl<'parent> Builder<'parent> {
     pub fn emit_ncl_operation(&mut self, value: &AstExpressionVariant) {
         self.add(Instruction::Duplicate);
         self.add(Instruction::IsNull);

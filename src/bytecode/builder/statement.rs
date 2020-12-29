@@ -12,7 +12,7 @@ use super::super::variable::{Variable, VariableVariant};
 use super::marker::Marker;
 use super::Builder;
 
-impl Builder {
+impl<'parent> Builder<'parent> {
     pub fn emit_statement(&mut self, variant: &AstStatementVariant) {
         match variant {
             AstStatementVariant::IfStatement(if_statement) => self.emit_if_statement(if_statement),
@@ -157,7 +157,7 @@ impl Builder {
     ) {
         self.emit_function(function);
         if let Some(name) = &function.name {
-            let address = self.environment().borrow_mut().add_variable(Variable {
+            let address = self.add_variable(Variable {
                 name: name.text.clone(),
                 variant: VariableVariant::Local,
             });
@@ -171,10 +171,7 @@ impl Builder {
         &mut self,
         AstVariableDeclarationStatement { name, value, .. }: &AstVariableDeclarationStatement,
     ) {
-        let address = self
-            .environment()
-            .borrow_mut()
-            .get_or_add_local_variable_address(&name.text);
+        let address = self.get_or_add_scope_variable(&name.text);
         self.emit_expression(value);
         self.add(Instruction::AssignVariable(address));
     }
@@ -190,10 +187,7 @@ impl Builder {
     ) {
         let name = &name.text;
         if *operator != AssignmentOperator::Direct {
-            let address = self
-                .environment()
-                .borrow_mut()
-                .get_or_capture_variable_address(name);
+            let address = self.get_or_capture_variable(name);
             self.add(Instruction::PushVariable(address));
         }
 
@@ -220,10 +214,7 @@ impl Builder {
             AssignmentOperator::Ncl => self.emit_ncl_operation(value),
         }
 
-        let address = self
-            .environment()
-            .borrow_mut()
-            .get_or_capture_variable_address(name);
+        let address = self.get_or_capture_variable(name);
         self.add(Instruction::AssignVariable(address));
     }
 

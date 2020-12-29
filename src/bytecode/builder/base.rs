@@ -5,23 +5,23 @@ use crate::bytecode::{Variable, VariableVariant};
 use super::super::instruction::Instruction;
 use super::Builder;
 
-impl Builder {
+impl<'parent> Builder<'parent> {
     pub fn emit_module(&mut self, AstModule { statements, .. }: &AstModule) {
-        self.environment().borrow_mut().push_scope();
+        self.push_scope();
         let statements = self.hoist(statements);
         for statement in statements {
             self.emit_statement(&statement);
         }
-        self.environment().borrow_mut().pop_scope();
+        self.pop_scope();
     }
 
     pub fn emit_block(&mut self, AstBlock { statements, .. }: &AstBlock) {
-        self.environment().borrow_mut().push_scope();
+        self.push_scope();
         let statements = self.hoist(statements);
         for statement in statements {
             self.emit_statement(&statement);
         }
-        self.environment().borrow_mut().pop_scope();
+        self.pop_scope();
     }
 
     pub fn emit_function_block(&mut self, AstBlock { statements, .. }: &AstBlock) {
@@ -38,7 +38,7 @@ impl Builder {
         }
     }
 
-    fn hoist<'a>(&mut self, statements: &'a [AstStatementVariant]) -> Vec<&'a AstStatementVariant> {
+    fn hoist<'b>(&mut self, statements: &'b [AstStatementVariant]) -> Vec<&'b AstStatementVariant> {
         let mut result = statements.iter().collect::<Vec<_>>();
         result.sort_by_key(|statement| match statement {
             AstStatementVariant::FunctionStatement(..) => 0,
@@ -50,7 +50,7 @@ impl Builder {
                 AstStatementVariant::VariableDeclarationStatement(
                     variable_declaraion_statement,
                 ) => {
-                    self.environment().borrow_mut().add_variable(Variable {
+                    self.add_variable(Variable {
                         name: variable_declaraion_statement.name.text.clone(),
                         variant: VariableVariant::Local,
                     });
