@@ -191,7 +191,6 @@ impl Builder {
             BinaryOperator::Lte => Some(Instruction::BinaryLte),
             BinaryOperator::Eq => Some(Instruction::BinaryEq),
             BinaryOperator::Neq => Some(Instruction::BinaryNeq),
-            BinaryOperator::Push => Some(Instruction::BinaryPush),
             BinaryOperator::Ncl | BinaryOperator::And | BinaryOperator::Or => None,
         } {
             self.emit_expression(left);

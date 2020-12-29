@@ -110,8 +110,8 @@ impl InterpreterError {
     fn display_location(location: &Location, source: &str) -> String {
         let bytes = source.as_bytes();
 
-        let mut start = location.start.index;
-        let mut end = location.start.index;
+        let mut start = location.start.index.min(bytes.len() - 1).max(0);
+        let mut end = start;
 
         while start > 0 && (bytes[start] as char) != '\n' {
             start -= 1;

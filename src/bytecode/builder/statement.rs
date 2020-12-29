@@ -3,8 +3,8 @@ use crate::ast::statement::{
     AstBreakStatement, AstChainAssignmentStatementVariant, AstContinueStatement,
     AstDotAssignmentStatement, AstEchoStatement, AstElseStatement, AstElseStatementNextVariant,
     AstExpressionStatement, AstFunctionStatement, AstIfStatement, AstIndexAssignmentStatement,
-    AstLoopStatement, AstReturnStatement, AstStatementVariant, AstVariableAssignmentStatement,
-    AstVariableDeclarationStatement, AstWhileStatement,
+    AstLoopStatement, AstPushStatement, AstReturnStatement, AstStatementVariant,
+    AstVariableAssignmentStatement, AstVariableDeclarationStatement, AstWhileStatement,
 };
 
 use super::super::instruction::Instruction;
@@ -49,7 +49,10 @@ impl Builder {
             AstStatementVariant::AstChainAssignmentStatement(chain_assignment_statement) => {
                 self.emit_chain_assignment_statement(chain_assignment_statement)
             }
-            AstStatementVariant::ExpressionStatement(expression_statement) => {
+            AstStatementVariant::AstPushStatement(push_statement) => {
+                self.emit_push_statement(push_statement)
+            }
+            AstStatementVariant::AstExpressionStatement(expression_statement) => {
                 self.emit_expression_statement(expression_statement)
             }
         }
@@ -228,12 +231,11 @@ impl Builder {
         &mut self,
         variant: &AstChainAssignmentStatementVariant,
     ) {
-        use AstChainAssignmentStatementVariant::*;
         match variant {
-            Index(index_assignment_statement) => {
+            AstChainAssignmentStatementVariant::Index(index_assignment_statement) => {
                 self.emit_index_assignment_statement(index_assignment_statement)
             }
-            Dot(dot_assignment_statement) => {
+            AstChainAssignmentStatementVariant::Dot(dot_assignment_statement) => {
                 self.emit_dot_assignment_statement(dot_assignment_statement)
             }
         }
@@ -281,11 +283,20 @@ impl Builder {
         self.add(Instruction::SetIndex);
     }
 
+    pub fn emit_push_statement(
+        &mut self,
+        AstPushStatement { target, value, .. }: &AstPushStatement,
+    ) {
+        self.emit_expression(target);
+        self.emit_expression(value);
+        self.add(Instruction::Push)
+    }
+
     pub fn emit_expression_statement(
         &mut self,
         AstExpressionStatement { expression, .. }: &AstExpressionStatement,
     ) {
         self.emit_expression(expression);
-        self.add(Instruction::Pop);
+        self.add(Instruction::Pop)
     }
 }

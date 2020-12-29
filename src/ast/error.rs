@@ -88,8 +88,7 @@ impl ParseError {
             | GrammarRule::operator_binary_eq
             | GrammarRule::operator_binary_neq
             | GrammarRule::operator_binary_and
-            | GrammarRule::operator_binary_or
-            | GrammarRule::operator_binary_push => Some("binary-operator".into()),
+            | GrammarRule::operator_binary_or => Some("binary-operator".into()),
             GrammarRule::operator_assign_direct
             | GrammarRule::operator_assign_ncl
             | GrammarRule::operator_assign_mul

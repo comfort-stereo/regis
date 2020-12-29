@@ -36,8 +36,8 @@ pub enum Instruction {
     BinaryLte,
     BinaryEq,
     BinaryNeq,
-    BinaryPush,
     GetIndex,
     SetIndex,
+    Push,
     Echo,
 }

@@ -15,7 +15,6 @@ pub enum BinaryOperator {
     Neq,
     And,
     Or,
-    Push,
 }
 
 impl BinaryOperator {
@@ -34,7 +33,6 @@ impl BinaryOperator {
             GrammarRule::operator_binary_neq => BinaryOperator::Neq,
             GrammarRule::operator_binary_and => BinaryOperator::And,
             GrammarRule::operator_binary_or => BinaryOperator::Or,
-            GrammarRule::operator_binary_push => BinaryOperator::Push,
             _ => unreachable!(),
         }
     }

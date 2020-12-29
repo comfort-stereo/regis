@@ -181,10 +181,10 @@ impl Vm {
                 | Instruction::BinaryGte
                 | Instruction::BinaryLte
                 | Instruction::BinaryEq
-                | Instruction::BinaryNeq
-                | Instruction::BinaryPush => self.instruction_binary_operation(&instruction)?,
+                | Instruction::BinaryNeq => self.instruction_binary_operation(&instruction)?,
                 Instruction::GetIndex => self.instruction_get_index()?,
                 Instruction::SetIndex => self.instruction_set_index()?,
+                Instruction::Push => self.instruction_push()?,
                 Instruction::Echo => self.instruction_echo(),
             }
 
@@ -458,13 +458,6 @@ impl Vm {
                 Instruction::BinaryAdd => Some(Value::List(left.borrow().concat(&right))),
                 _ => None,
             },
-            (Value::List(left), right) => match instruction {
-                Instruction::BinaryPush => {
-                    left.borrow_mut().push(right.clone());
-                    Some(Value::List(left.clone()))
-                }
-                _ => None,
-            },
             (Value::Object(left), Value::Object(right)) => match instruction {
                 Instruction::BinaryAdd => Some(Value::Object(left.borrow().concat(&right))),
                 _ => None,
@@ -537,6 +530,33 @@ impl Vm {
                     None,
                     VmErrorVariant::TypeError {
                         message: format!("Type '{}' is not indexable.", target.type_of()),
+                    },
+                ));
+            }
+        }
+
+        Ok(())
+    }
+
+    fn instruction_push(&mut self) -> Result<(), VmError> {
+        let value = self.pop_value();
+        let target = self.pop_value();
+
+        match target {
+            Value::List(list) => {
+                list.borrow_mut().push(value);
+            }
+            Value::Object(object) => {
+                object.borrow_mut().set(value, Value::Null);
+            }
+            _ => {
+                return Err(VmError::new(
+                    None,
+                    VmErrorVariant::TypeError {
+                        message: format!(
+                            "Operator '[]=' is not defined for type {}.",
+                            target.type_of()
+                        ),
                     },
                 ));
             }

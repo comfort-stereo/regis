@@ -18,7 +18,8 @@ pub enum AstStatementVariant {
     VariableDeclarationStatement(Box<AstVariableDeclarationStatement>),
     VariableAssignmentStatement(Box<AstVariableAssignmentStatement>),
     AstChainAssignmentStatement(AstChainAssignmentStatementVariant),
-    ExpressionStatement(Box<AstExpressionStatement>),
+    AstPushStatement(AstPushStatement),
+    AstExpressionStatement(AstExpressionStatement),
 }
 
 impl AstStatementVariant {
@@ -60,8 +61,11 @@ impl AstStatementVariant {
             GrammarRule::chain_assignment_statement => Self::AstChainAssignmentStatement(
                 AstChainAssignmentStatementVariant::parse(pair, context),
             ),
+            GrammarRule::push_statement => {
+                Self::AstPushStatement(AstPushStatement::parse(pair, context))
+            }
             GrammarRule::expression_statement => {
-                Self::ExpressionStatement(AstExpressionStatement::parse(pair, context).into())
+                Self::AstExpressionStatement(AstExpressionStatement::parse(pair, context))
             }
             _ => unreachable!(),
         }
@@ -340,6 +344,24 @@ pub struct AstDotAssignmentStatement {
 }
 
 #[derive(Debug)]
+pub struct AstPushStatement {
+    pub info: AstNodeInfo,
+    pub target: AstExpressionVariant,
+    pub value: AstExpressionVariant,
+}
+
+impl AstPushStatement {
+    pub fn parse(pair: GrammarPair, context: &ParseContext) -> Self {
+        let (info, mut inner) = extract(pair);
+        AstPushStatement {
+            info,
+            target: AstExpressionVariant::parse(inner.next().unwrap(), context),
+            value: AstExpressionVariant::parse(inner.next().unwrap(), context),
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct AstExpressionStatement {
     pub info: AstNodeInfo,
     pub expression: AstExpressionVariant,
@@ -348,7 +370,7 @@ pub struct AstExpressionStatement {
 impl AstExpressionStatement {
     pub fn parse(pair: GrammarPair, context: &ParseContext) -> Self {
         let (info, mut inner) = extract(pair);
-        Self {
+        AstExpressionStatement {
             info,
             expression: AstExpressionVariant::parse(inner.next().unwrap(), context),
         }

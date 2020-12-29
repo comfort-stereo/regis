@@ -51,7 +51,6 @@ lazy_static! {
     static ref CLIMBER: GrammarPrecClimber = {
         let op = |rule: GrammarRule| GrammarOperator::new(rule, GrammarAssoc::Left);
         GrammarPrecClimber::new(vec![
-            op(GrammarRule::operator_binary_push),
             op(GrammarRule::operator_binary_or),
             op(GrammarRule::operator_binary_and),
             op(GrammarRule::operator_binary_eq) | op(GrammarRule::operator_binary_neq),

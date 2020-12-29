@@ -78,7 +78,6 @@ function = {
 parameters = { (identifier ~ br? ~ "," ~ br?)* ~ identifier? ~ br? }
 arguments = { (expression ~ br? ~ "," ~ br?)* ~ expression? ~ br? }
 
-operator_binary_push = { "<-" }
 operator_binary_ncl = { "??" }
 operator_binary_mul = { "*" }
 operator_binary_div = { "/" }
@@ -103,8 +102,7 @@ operator_assign_and = { "&&=" }
 operator_assign_or = { "||=" }
 
 binary_operator = _{
-      operator_binary_push
-    | operator_binary_ncl
+      operator_binary_ncl
     | operator_binary_mul
     | operator_binary_div
     | operator_binary_add
@@ -181,6 +179,7 @@ function_statement = { function }
 variable_declaration_statement = { keyword_let ~ br? ~ identifier ~ br? ~ "=" ~ br? ~ expression }
 variable_assignment_statement = { identifier ~ br? ~ assignment_operator ~ br? ~ expression }
 chain_assignment_statement = { chain ~ br? ~ assignment_operator ~ br? ~ expression }
+push_statement = { expression ~ br? ~ "[]" ~ br? ~ "=" ~ br? ~ expression }
 expression_statement = { expression }
 
 execution_statement = _{
@@ -192,6 +191,7 @@ execution_statement = _{
     | variable_declaration_statement
     | variable_assignment_statement
     | chain_assignment_statement
+    | push_statement
     | expression_statement
 }
 
@@ -209,7 +209,7 @@ block_statement = _{
     | while_statement
 }
 
-terminator = _{ ";" | br | eoi }
+terminator = _{ ";" | &"}" | br | eoi }
 
 statement = _{
     br?

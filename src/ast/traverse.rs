@@ -33,7 +33,8 @@ pub enum AstTraverseVariant<'a> {
     VariableDeclarationStatement(&'a AstVariableDeclarationStatement),
     VariableAssignmentStatement(&'a AstVariableAssignmentStatement),
     AstChainAssignmentStatement(&'a AstChainAssignmentStatementVariant),
-    ExpressionStatement(&'a AstExpressionStatement),
+    AstPushStatement(&'a AstPushStatement),
+    AstExpressionStatement(&'a AstExpressionStatement),
 }
 
 impl<'a> AstTraverseVariant<'a> {
@@ -74,8 +75,9 @@ impl<'a> AstTraverseVariant<'a> {
             AstStatementVariant::AstChainAssignmentStatement(statement) => {
                 Self::AstChainAssignmentStatement(statement)
             }
-            AstStatementVariant::ExpressionStatement(statement) => {
-                Self::ExpressionStatement(statement)
+            AstStatementVariant::AstPushStatement(statement) => Self::AstPushStatement(statement),
+            AstStatementVariant::AstExpressionStatement(statement) => {
+                Self::AstExpressionStatement(statement)
             }
         }
     }
@@ -301,8 +303,13 @@ impl<'a> Iterator for AstTraversal<'a> {
                         .push(AstTraverseVariant::from_expression(&dot.value));
                 }
             },
-            AstTraverseVariant::ExpressionStatement(AstExpressionStatement {
-                expression, ..
+            AstTraverseVariant::AstPushStatement(AstPushStatement { target, value, .. }) => {
+                self.stack.push(AstTraverseVariant::from_expression(target));
+                self.stack.push(AstTraverseVariant::from_expression(value));
+            }
+            AstTraverseVariant::AstExpressionStatement(AstExpressionStatement {
+                expression,
+                ..
             }) => {
                 self.stack
                     .push(AstTraverseVariant::from_expression(expression));
