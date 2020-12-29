@@ -81,16 +81,16 @@ impl<'a> AstTraverseVariant<'a> {
     }
 }
 
-type AstTraverseFilter<'a> = fn(current: &AstTraverseVariant<'a>) -> TraversalState;
+pub type AstTraverseFilter<'a> = fn(current: &AstTraverseVariant<'a>) -> AstTraversalState;
 
 #[derive(Debug, PartialEq, Eq)]
-enum TraversalState {
+pub enum AstTraversalState {
     Continue,
     Stop,
     Exit,
 }
 
-struct AstTraversal<'a> {
+pub struct AstTraversal<'a> {
     stack: Vec<AstTraverseVariant<'a>>,
     filter: Option<AstTraverseFilter<'a>>,
 }
@@ -116,14 +116,14 @@ impl<'a> Iterator for AstTraversal<'a> {
         let state = if let Some(state_function) = self.filter {
             state_function(&current)
         } else {
-            TraversalState::Continue
+            AstTraversalState::Continue
         };
 
-        if state == TraversalState::Exit {
+        if state == AstTraversalState::Exit {
             return None;
         }
 
-        if state == TraversalState::Stop {
+        if state == AstTraversalState::Stop {
             return Some(current);
         }
 

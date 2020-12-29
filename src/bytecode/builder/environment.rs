@@ -86,6 +86,33 @@ impl Environment {
         address
     }
 
+    pub fn get_or_add_local_variable_address(&mut self, name: &SharedImmutable<String>) -> usize {
+        let scope = self
+            .scopes
+            .last_mut()
+            .expect("There was no scope to add a variable to.");
+
+        if let Some(address) = scope.get(name) {
+            *address
+        } else {
+            self.add_variable(Variable {
+                name: name.clone(),
+                variant: VariableVariant::Local,
+            })
+        }
+    }
+
+    pub fn get_scope_variable_address(&self, name: &SharedImmutable<String>) -> Option<usize> {
+        let location = self.get_variable_location(name);
+        if let Some(VariableLocation { ascend, address }) = location {
+            if ascend == 0 {
+                return Some(address);
+            }
+        }
+
+        None
+    }
+
     pub fn get_or_capture_variable_address(&mut self, name: &SharedImmutable<String>) -> usize {
         let location = self
             .get_variable_location(name)

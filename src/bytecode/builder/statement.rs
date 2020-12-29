@@ -168,10 +168,10 @@ impl Builder {
         &mut self,
         AstVariableDeclarationStatement { name, value, .. }: &AstVariableDeclarationStatement,
     ) {
-        let address = self.environment().borrow_mut().add_variable(Variable {
-            name: name.text.clone(),
-            variant: VariableVariant::Local,
-        });
+        let address = self
+            .environment()
+            .borrow_mut()
+            .get_or_add_local_variable_address(&name.text);
         self.emit_expression(value);
         self.add(Instruction::AssignVariable(address));
     }
