@@ -5,6 +5,7 @@ pub mod location;
 pub mod node;
 pub mod operator;
 pub mod statement;
+pub mod traverse;
 
 mod grammar;
 mod unescape;
