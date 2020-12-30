@@ -4,7 +4,7 @@ use std::hash::{Hash, Hasher};
 use crate::bytecode::{Bytecode, Procedure};
 use crate::shared::{SharedImmutable, SharedMutable};
 
-use super::closure::Capture;
+use super::capture::Capture;
 use super::rid::rid;
 use super::value::ValueType;
 
@@ -41,12 +41,8 @@ impl Debug for Function {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> FormatResult {
         write!(
             formatter,
-            "fn {}() [{:?}]",
+            "fn {} () {{ ... }}",
             self.name().unwrap_or_else(|| String::from("").into()),
-            self.captures
-                .iter()
-                .map(|capture| capture.borrow().position)
-                .collect::<Vec<_>>(),
         )
     }
 }

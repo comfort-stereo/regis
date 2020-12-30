@@ -20,8 +20,6 @@ pub enum Instruction {
     PushString(SharedImmutable<String>),
     PushVariable(usize),
     AssignVariable(usize),
-    PushCapturedVariable(usize),
-    AssignCapturedVariable(usize),
     CreateList(usize),
     CreateObject(usize),
     CreateFunction(SharedImmutable<Procedure>),

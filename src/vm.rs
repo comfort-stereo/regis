@@ -1,4 +1,4 @@
-mod closure;
+mod capture;
 mod error;
 mod function;
 mod list;
@@ -15,7 +15,7 @@ pub use value::{Value, ValueType};
 use crate::bytecode::{Bytecode, Instruction, Procedure, VariableLocation, VariableVariant};
 use crate::shared::{SharedImmutable, SharedMutable};
 
-use closure::Capture;
+use capture::Capture;
 
 static DEBUG: bool = false;
 
@@ -29,7 +29,7 @@ impl StackValue {
     pub fn get(&self) -> Value {
         match self {
             StackValue::Value(value) => value.clone(),
-            StackValue::Capture(capture) => capture.borrow().value.clone(),
+            StackValue::Capture(capture) => capture.borrow().get().clone(),
         }
     }
 }
@@ -160,12 +160,6 @@ impl Vm {
                 Instruction::PushString(value) => self.instruction_push_string(value.clone()),
                 Instruction::PushVariable(address) => self.instruction_push_variable(*address),
                 Instruction::AssignVariable(address) => self.instruction_assign_variable(*address),
-                Instruction::PushCapturedVariable(address) => {
-                    self.instruction_push_variable(*address)
-                }
-                Instruction::AssignCapturedVariable(address) => {
-                    self.instruction_assign_variable(*address)
-                }
                 Instruction::CreateList(size) => self.instruction_create_list(*size),
                 Instruction::CreateObject(size) => self.instruction_create_object(*size),
                 Instruction::CreateFunction(function) => {
@@ -205,7 +199,7 @@ impl Vm {
     fn set_value(&mut self, position: usize, value: Value) {
         match &self.stack[position] {
             StackValue::Value(..) => self.stack[position] = StackValue::Value(value),
-            StackValue::Capture(capture) => capture.borrow_mut().value = value,
+            StackValue::Capture(capture) => capture.borrow_mut().set(value),
         }
     }
 
@@ -226,7 +220,7 @@ impl Vm {
     fn capture_value(&mut self, position: usize) -> SharedMutable<Capture> {
         match self.stack[position].clone() {
             StackValue::Value(value) => {
-                let capture = SharedMutable::new(Capture { value, position });
+                let capture = SharedMutable::new(Capture::new(value));
                 self.stack[position] = StackValue::Capture(capture.clone());
                 capture
             }
