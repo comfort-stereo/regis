@@ -14,7 +14,7 @@ pub enum AstStatementVariant {
     BreakStatement(Box<AstBreakStatement>),
     ContinueStatement(Box<AstContinueStatement>),
     EchoStatement(Box<AstEchoStatement>),
-    FunctionStatement(Box<AstFunctionStatement>),
+    FunctionDeclarationStatement(Box<AstFunctionDeclarationStatement>),
     VariableDeclarationStatement(Box<AstVariableDeclarationStatement>),
     VariableAssignmentStatement(Box<AstVariableAssignmentStatement>),
     AstChainAssignmentStatement(AstChainAssignmentStatementVariant),
@@ -49,9 +49,9 @@ impl AstStatementVariant {
             GrammarRule::echo_statement => {
                 Self::EchoStatement(AstEchoStatement::parse(pair, context).into())
             }
-            GrammarRule::function_statement => {
-                Self::FunctionStatement(AstFunctionStatement::parse(pair, context).into())
-            }
+            GrammarRule::function_declaration_statement => Self::FunctionDeclarationStatement(
+                AstFunctionDeclarationStatement::parse(pair, context).into(),
+            ),
             GrammarRule::variable_declaration_statement => Self::VariableDeclarationStatement(
                 AstVariableDeclarationStatement::parse(pair, context).into(),
             ),
@@ -231,18 +231,28 @@ impl AstEchoStatement {
     }
 }
 #[derive(Debug)]
-pub struct AstFunctionStatement {
+pub struct AstFunctionDeclarationStatement {
     pub info: AstNodeInfo,
+    pub is_exported: bool,
     pub function: Box<AstFunction>,
 }
 
-impl AstFunctionStatement {
+impl AstFunctionDeclarationStatement {
     pub fn parse(pair: GrammarPair, context: &ParseContext) -> Self {
-        assert_eq!(pair.as_rule(), GrammarRule::function_statement);
+        assert_eq!(pair.as_rule(), GrammarRule::function_declaration_statement);
         let (info, mut inner) = extract(pair);
+
+        let first = inner.next().unwrap();
+        let (is_exported, function) = if first.as_rule() == GrammarRule::export {
+            (true, inner.next().unwrap())
+        } else {
+            (false, first)
+        };
+
         Self {
             info,
-            function: AstFunction::parse(inner.next().unwrap(), context).into(),
+            is_exported,
+            function: AstFunction::parse(function, context).into(),
         }
     }
 }
@@ -250,6 +260,7 @@ impl AstFunctionStatement {
 #[derive(Debug)]
 pub struct AstVariableDeclarationStatement {
     pub info: AstNodeInfo,
+    pub is_exported: bool,
     pub name: Box<AstIdentifier>,
     pub value: AstExpressionVariant,
 }
@@ -258,9 +269,18 @@ impl AstVariableDeclarationStatement {
     pub fn parse(pair: GrammarPair, context: &ParseContext) -> Self {
         assert_eq!(pair.as_rule(), GrammarRule::variable_declaration_statement);
         let (info, mut inner) = extract(pair);
+
+        let first = inner.next().unwrap();
+        let (is_exported, name) = if first.as_rule() == GrammarRule::export {
+            (true, inner.next().unwrap())
+        } else {
+            (false, first)
+        };
+
         Self {
             info,
-            name: AstIdentifier::parse(inner.next().unwrap(), context).into(),
+            is_exported,
+            name: AstIdentifier::parse(name, context).into(),
             value: AstExpressionVariant::parse(inner.next().unwrap(), context),
         }
     }

@@ -1,7 +1,7 @@
-use std::{env, fs, process};
+use std::{env, process};
 
-use interpreter::Interpreter;
-use regis::*;
+use regis::interpreter::Interpreter;
+use regis::path::CanonicalPath;
 
 fn main() {
     let args = env::args().collect::<Vec<String>>();
@@ -9,21 +9,14 @@ fn main() {
         println!("ERROR: Provide a file to execute.");
         process::exit(1);
     });
-    let path = fs::canonicalize(path).unwrap_or_else(|_| {
-        println!("ERROR: Path does not exist.");
-        process::exit(2);
-    });
-    let source = fs::read_to_string(path).unwrap_or_else(|_| {
-        println!("ERROR: Cannot read file as text.");
-        process::exit(3);
+    let path = CanonicalPath::from(path).unwrap_or_else(|| {
+        println!("ERROR: Specified file path does not exist.");
+        process::exit(1);
     });
 
-    let mut interpreter = Interpreter::new();
-    match interpreter.run_module(&source) {
-        Ok(()) => {}
-        Err(error) => {
-            println!("{}", error.show(&source));
-            process::exit(4);
-        }
+    let mut interpreter = Interpreter::new(path.clone());
+    if let Err(error) = interpreter.load_module(&path) {
+        println!("{}", error.show());
+        process::exit(1);
     }
 }

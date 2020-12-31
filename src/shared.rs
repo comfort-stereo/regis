@@ -88,6 +88,12 @@ impl<T> From<T> for SharedImmutable<T> {
     }
 }
 
+impl From<&str> for SharedImmutable<String> {
+    fn from(inner: &str) -> Self {
+        Self::new(String::from(inner))
+    }
+}
+
 impl<T> Deref for SharedImmutable<T> {
     type Target = T;
 
@@ -129,5 +135,11 @@ impl<T> SharedImmutable<T> {
         Self {
             inner: Rc::new(value),
         }
+    }
+}
+
+impl<T: Clone> SharedImmutable<T> {
+    pub fn clone_inner(&self) -> T {
+        (*self.inner).clone()
     }
 }

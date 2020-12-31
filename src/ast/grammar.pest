@@ -8,6 +8,8 @@ br = _{ ("\n" | "\r")+ }
 
 keyword_fn = _{ "fn" }
 keyword_let = _{ "let" }
+keyword_import = _{ "import" }
+keyword_export = _{ "export" }
 keyword_echo = _{ "echo" }
 keyword_null = _{ "null" }
 keyword_if = _{ "if" }
@@ -36,7 +38,8 @@ keyword = _{
     | keyword_continue
 }
 
-identifier = @{ !keyword ~ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
+export = { keyword_export }
+identifier = @{ !keyword ~ "@"? ~ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
 
 null = @{ keyword_null }
 boolean = @{ keyword_true | keyword_false }
@@ -174,9 +177,10 @@ return_statement = {
 
 break_statement = { keyword_break }
 continue_statement = { keyword_continue }
+import_statement = { keyword_import ~ br? ~ expression }
 echo_statement = { keyword_echo ~ br? ~ expression }
-function_statement = { function }
-variable_declaration_statement = { keyword_let ~ br? ~ identifier ~ br? ~ "=" ~ br? ~ expression }
+function_declaration_statement = { export? ~ br? ~ function }
+variable_declaration_statement = { export? ~ br? ~ keyword_let ~ br? ~ identifier ~ br? ~ "=" ~ br? ~ expression }
 variable_assignment_statement = { identifier ~ br? ~ assignment_operator ~ br? ~ expression }
 chain_assignment_statement = { chain ~ br? ~ assignment_operator ~ br? ~ expression }
 push_statement = { expression ~ br? ~ "[]" ~ br? ~ "=" ~ br? ~ expression }
@@ -187,7 +191,7 @@ execution_statement = _{
     | break_statement
     | continue_statement
     | echo_statement
-    | function_statement
+    | function_declaration_statement
     | variable_declaration_statement
     | variable_assignment_statement
     | chain_assignment_statement

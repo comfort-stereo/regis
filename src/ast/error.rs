@@ -73,9 +73,6 @@ impl ParseError {
 
     fn display_grammar_rule(error: &GrammarRule) -> Option<String> {
         match error {
-            GrammarRule::wrapped => None,
-            GrammarRule::binary_operations => None,
-            GrammarRule::chain => None,
             GrammarRule::operator_binary_ncl
             | GrammarRule::operator_binary_mul
             | GrammarRule::operator_binary_div
@@ -100,6 +97,32 @@ impl ParseError {
             GrammarRule::index => Some("index".into()),
             GrammarRule::dot => Some("dot".into()),
             GrammarRule::call => Some("call".into()),
+            GrammarRule::if_statement
+            | GrammarRule::else_statement
+            | GrammarRule::loop_statement
+            | GrammarRule::while_statement
+            | GrammarRule::return_statement
+            | GrammarRule::break_statement
+            | GrammarRule::continue_statement
+            | GrammarRule::echo_statement
+            | GrammarRule::function_declaration_statement
+            | GrammarRule::variable_declaration_statement
+            | GrammarRule::variable_assignment_statement
+            | GrammarRule::chain_assignment_statement
+            | GrammarRule::push_statement
+            | GrammarRule::expression_statement => Some("statement".into()),
+            GrammarRule::null
+            | GrammarRule::boolean
+            | GrammarRule::int
+            | GrammarRule::float
+            | GrammarRule::string
+            | GrammarRule::variable
+            | GrammarRule::list
+            | GrammarRule::object
+            | GrammarRule::function
+            | GrammarRule::wrapped
+            | GrammarRule::chain
+            | GrammarRule::binary_operations => Some("expression".into()),
             error => Some(format!("{:?}", error)),
         }
     }

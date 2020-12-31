@@ -71,9 +71,9 @@ impl Object {
         self.inner.is_empty()
     }
 
-    pub fn get(&self, index: Value) -> Value {
+    pub fn get(&self, index: &Value) -> Value {
         self.inner
-            .get(&index)
+            .get(index)
             .map_or(Value::Null, |value| value.clone())
     }
 

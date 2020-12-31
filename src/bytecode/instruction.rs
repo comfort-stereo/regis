@@ -1,6 +1,7 @@
 use crate::shared::SharedImmutable;
 
 use super::procedure::Procedure;
+use super::ExportLocation;
 
 #[derive(Debug)]
 pub enum Instruction {
@@ -20,6 +21,9 @@ pub enum Instruction {
     PushString(SharedImmutable<String>),
     PushVariable(usize),
     AssignVariable(usize),
+    PushExport(Box<ExportLocation>),
+    AssignExport(Box<ExportLocation>),
+    PushGlobal(usize),
     CreateList(usize),
     CreateObject(usize),
     CreateFunction(SharedImmutable<Procedure>),

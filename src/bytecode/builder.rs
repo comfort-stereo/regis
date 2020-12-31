@@ -4,64 +4,31 @@ mod marker;
 mod operator;
 mod statement;
 
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashSet};
 
 use crate::shared::SharedImmutable;
 
+use super::environment::Environment;
 use super::instruction::Instruction;
-use super::{Bytecode, Parameter, Variable, VariableLocation, VariableVariant};
+use super::variable::GlobalLocation;
+use super::{Bytecode, Variable, VariableLocation, VariableVariant};
 
 use marker::Marker;
 
-type Scope = HashMap<SharedImmutable<String>, usize>;
-
 #[derive(Debug)]
-pub struct Builder<'parent> {
-    parent: Option<&'parent Self>,
+pub struct Builder<'environment> {
     instructions: Vec<Instruction>,
     markers: BTreeMap<usize, HashSet<Marker>>,
-    scopes: Vec<Scope>,
-    parameters: Vec<Parameter>,
-    variables: Vec<Variable>,
+    environment: &'environment mut Environment,
 }
 
-impl<'parent> Default for Builder<'parent> {
-    fn default() -> Builder<'parent> {
-        Self::new()
-    }
-}
-
-impl<'parent> Builder<'parent> {
-    pub fn new() -> Self {
+impl<'environment> Builder<'environment> {
+    pub fn new(environment: &'environment mut Environment) -> Self {
         Self {
-            parent: None,
-            parameters: Vec::new(),
-            variables: Vec::new(),
-            scopes: vec![Scope::new()],
             instructions: Vec::new(),
             markers: BTreeMap::new(),
+            environment,
         }
-    }
-
-    pub fn new_child(parent: &'parent Self) -> Self {
-        Self {
-            parent: Some(parent),
-            instructions: Vec::new(),
-            markers: BTreeMap::new(),
-            ..Self::new()
-        }
-    }
-
-    pub fn parameters(&self) -> &Vec<Parameter> {
-        &self.parameters
-    }
-
-    pub fn variables(&self) -> &Vec<Variable> {
-        &self.variables
-    }
-
-    pub fn call_size(&self) -> usize {
-        self.parameters.len() + self.variables.len()
     }
 
     pub fn last(&self) -> usize {
@@ -99,95 +66,62 @@ impl<'parent> Builder<'parent> {
             .unwrap_or(false)
     }
 
-    pub fn push_scope(&mut self) {
-        self.scopes.push(Scope::new());
+    pub fn emit_variable_assign_instruction(&mut self, name: &SharedImmutable<String>) {
+        self.emit_variable_instruction(name, true);
     }
 
-    pub fn pop_scope(&mut self) {
-        if self.scopes.len() == 1 {
-            panic!("Cannot pop last scope from environment.")
-        }
-
-        self.scopes.pop().unwrap();
+    pub fn emit_variable_push_instruction(&mut self, name: &SharedImmutable<String>) {
+        self.emit_variable_instruction(name, false);
     }
 
-    pub fn add_parameter(&mut self, parameter: Parameter) -> usize {
-        assert!(self.variables.is_empty());
-        let name = parameter.name.clone();
-        let address = self.call_size();
-        self.parameters.push(parameter);
-        self.scopes.last_mut().unwrap().insert(name, address);
-
-        address
-    }
-
-    pub fn add_variable(&mut self, variable: Variable) -> usize {
-        let name = variable.name.clone();
-        let address = self.call_size();
-        self.variables.push(variable);
-        self.scopes.last_mut().unwrap().insert(name, address);
-
-        address
-    }
-
-    pub fn get_or_add_scope_variable(&mut self, name: &SharedImmutable<String>) -> usize {
-        let scope = self.scopes.last_mut().unwrap();
-        if let Some(address) = scope.get(name) {
-            *address
-        } else {
-            self.add_variable(Variable {
-                name: name.clone(),
-                variant: VariableVariant::Local,
-            })
-        }
-    }
-
-    pub fn get_or_capture_variable(&mut self, name: &SharedImmutable<String>) -> usize {
+    fn emit_variable_instruction(&mut self, name: &SharedImmutable<String>, assign: bool) {
         let location = self
+            .environment
             .get_variable_location(name)
-            .unwrap_or_else(|| panic!("No variable '{}' found in scope.", name));
+            .unwrap_or_else(|| panic!("No variable '{}' found.", name));
 
-        // If the variable is in the current call, return the local address.
-        if location.ascend == 0 {
-            return location.address;
-        }
+        let instruction = match location {
+            VariableLocation::Stack(location) => {
+                let address = if location.ascend == 0 {
+                    // If the variable is in the current stack frame, use the local address.
+                    location.address
+                } else {
+                    // If the variable is in a containing environment, add a capture variable
+                    // pointing to its location and use the capture variable's local address.
+                    self.environment.add_variable(Variable {
+                        name: name.clone(),
+                        variant: VariableVariant::Capture { location },
+                    })
+                };
 
-        // If the variable is in a containing environment, add a capture variable pointing to its
-        // location and return the capture variable's address.
-        self.add_variable(Variable {
-            name: name.clone(),
-            variant: VariableVariant::Capture { location },
-        })
-    }
-
-    fn get_variable_location(&self, name: &SharedImmutable<String>) -> Option<VariableLocation> {
-        let mut ascend = 0;
-        let mut current = Some(self);
-
-        while let Some(builder) = current {
-            if let Some(address) = builder.get_local_variable_address(name) {
-                return Some(VariableLocation { ascend, address });
+                if assign {
+                    Instruction::AssignVariable(address)
+                } else {
+                    Instruction::PushVariable(address)
+                }
             }
+            VariableLocation::Export(location) => {
+                if assign {
+                    Instruction::AssignExport(location.into())
+                } else {
+                    Instruction::PushExport(location.into())
+                }
+            }
+            VariableLocation::Global(GlobalLocation { address }) => {
+                if assign {
+                    panic!("Global variables cannot be reassigned.");
+                } else {
+                    Instruction::PushGlobal(address)
+                }
+            }
+        };
 
-            ascend += 1;
-            current = builder.parent;
-        }
-
-        None
-    }
-
-    fn get_local_variable_address(&self, name: &SharedImmutable<String>) -> Option<usize> {
-        self.scopes
-            .iter()
-            .rev()
-            .filter_map(|scope| scope.get(name))
-            .next()
-            .cloned()
+        self.add(instruction);
     }
 
     pub fn build(mut self) -> Bytecode {
         self.finalize();
-        Bytecode::new(self.instructions, self.parameters, self.variables)
+        Bytecode::new(self.instructions)
     }
 
     fn finalize(&mut self) {

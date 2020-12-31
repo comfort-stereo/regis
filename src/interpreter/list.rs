@@ -1,12 +1,12 @@
 use std::fmt::{Display, Formatter, Result as FormatResult};
 use std::hash::{Hash, Hasher};
 
+use crate::error::RegisError;
 use crate::shared::SharedMutable;
-use crate::vm::error::VmError;
 
 use super::rid::rid;
 use super::value::{Value, ValueType};
-use super::VmErrorVariant;
+use super::RegisErrorVariant;
 
 #[derive(Debug)]
 pub struct List {
@@ -72,19 +72,19 @@ impl List {
         self.inner.is_empty()
     }
 
-    pub fn get(&self, index: Value) -> Result<Value, VmError> {
+    pub fn get(&self, index: &Value) -> Result<Value, RegisError> {
         match index {
             Value::Int(int) => {
-                let positive = int as usize;
-                if int < 0 || positive >= self.inner.len() {
+                let positive = *int as usize;
+                if *int < 0 || positive >= self.inner.len() {
                     return Ok(Value::Null);
                 }
 
                 Ok(self.inner[positive].clone())
             }
-            _ => Err(VmError::new(
+            _ => Err(RegisError::new(
                 None,
-                VmErrorVariant::TypeError {
+                RegisErrorVariant::TypeError {
                     message: format!(
                         "Lists cannot be indexed by type '{}', only '{}' is allowed.",
                         index.type_of(),
@@ -95,14 +95,14 @@ impl List {
         }
     }
 
-    pub fn set(&mut self, index: Value, value: Value) -> Result<(), VmError> {
+    pub fn set(&mut self, index: Value, value: Value) -> Result<(), RegisError> {
         match index {
             Value::Int(int) => {
                 let index = int as usize;
                 if int < 0 || index >= self.inner.len() {
-                    return Err(VmError::new(
+                    return Err(RegisError::new(
                         None,
-                        VmErrorVariant::IndexOutOfBoundsError {
+                        RegisErrorVariant::IndexOutOfBoundsError {
                             message: format!(
                                 "Attempted to set invalid list index '{}'.",
                                 value.to_string()
@@ -114,9 +114,9 @@ impl List {
                 self.inner[index] = value;
                 Ok(())
             }
-            _ => Err(VmError::new(
+            _ => Err(RegisError::new(
                 None,
-                VmErrorVariant::TypeError {
+                RegisErrorVariant::TypeError {
                     message: format!(
                         "Lists cannot be indexed by type '{}', only '{}' is allowed.",
                         index.type_of(),

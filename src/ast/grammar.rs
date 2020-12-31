@@ -23,7 +23,7 @@ pub struct ParseContext;
 
 impl Default for ParseContext {
     fn default() -> Self {
-        Self {}
+        Self
     }
 }
 
@@ -32,7 +32,7 @@ pub fn parse(rule: GrammarRule, code: &str) -> Result<GrammarPair, GrammarError>
     Ok(pairs.next().unwrap())
 }
 
-pub fn content<'a>(pair: &GrammarPair<'a>) -> String {
+pub fn content(pair: &GrammarPair) -> String {
     pair.as_str().trim().into()
 }
 

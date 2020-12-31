@@ -8,6 +8,7 @@ extern crate uuid;
 
 pub mod ast;
 pub mod bytecode;
+pub mod error;
 pub mod interpreter;
+pub mod path;
 pub mod shared;
-pub mod vm;

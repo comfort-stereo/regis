@@ -1,3 +1,5 @@
+use crate::path::CanonicalPath;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Position {
     pub index: usize,
@@ -7,7 +9,7 @@ pub struct Position {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Location {
-    pub path: Option<String>,
+    pub path: Option<CanonicalPath>,
     pub start: Position,
     pub end: Position,
 }

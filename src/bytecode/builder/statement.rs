@@ -2,17 +2,17 @@ use crate::ast::operator::AssignmentOperator;
 use crate::ast::statement::{
     AstBreakStatement, AstChainAssignmentStatementVariant, AstContinueStatement,
     AstDotAssignmentStatement, AstEchoStatement, AstElseStatement, AstElseStatementNextVariant,
-    AstExpressionStatement, AstFunctionStatement, AstIfStatement, AstIndexAssignmentStatement,
-    AstLoopStatement, AstPushStatement, AstReturnStatement, AstStatementVariant,
-    AstVariableAssignmentStatement, AstVariableDeclarationStatement, AstWhileStatement,
+    AstExpressionStatement, AstFunctionDeclarationStatement, AstIfStatement,
+    AstIndexAssignmentStatement, AstLoopStatement, AstPushStatement, AstReturnStatement,
+    AstStatementVariant, AstVariableAssignmentStatement, AstVariableDeclarationStatement,
+    AstWhileStatement,
 };
 
 use super::super::instruction::Instruction;
-use super::super::variable::{Variable, VariableVariant};
 use super::marker::Marker;
 use super::Builder;
 
-impl<'parent> Builder<'parent> {
+impl<'environment> Builder<'environment> {
     pub fn emit_statement(&mut self, variant: &AstStatementVariant) {
         match variant {
             AstStatementVariant::IfStatement(if_statement) => self.emit_if_statement(if_statement),
@@ -37,8 +37,8 @@ impl<'parent> Builder<'parent> {
             AstStatementVariant::EchoStatement(echo_statement) => {
                 self.emit_echo_statement(echo_statement)
             }
-            AstStatementVariant::FunctionStatement(function_statement) => {
-                self.emit_function_statement(function_statement)
+            AstStatementVariant::FunctionDeclarationStatement(function_declaration_statement) => {
+                self.emit_function_declaration_statement(function_declaration_statement)
             }
             AstStatementVariant::VariableDeclarationStatement(variable_declaration_statement) => {
                 self.emit_variable_declaration_statement(variable_declaration_statement)
@@ -151,17 +151,15 @@ impl<'parent> Builder<'parent> {
         self.add(Instruction::Echo);
     }
 
-    pub fn emit_function_statement(
+    pub fn emit_function_declaration_statement(
         &mut self,
-        AstFunctionStatement { function, .. }: &AstFunctionStatement,
+        AstFunctionDeclarationStatement { function, .. }: &AstFunctionDeclarationStatement,
     ) {
         self.emit_function(function);
         if let Some(name) = &function.name {
-            let address = self.add_variable(Variable {
-                name: name.text.clone(),
-                variant: VariableVariant::Local,
-            });
-            self.add(Instruction::AssignVariable(address));
+            // The variable for the function should be registered already due to hoisting.
+            // So we just assign it here.
+            self.emit_variable_assign_instruction(&name.text);
         } else {
             self.add(Instruction::Pop);
         }
@@ -169,11 +167,12 @@ impl<'parent> Builder<'parent> {
 
     pub fn emit_variable_declaration_statement(
         &mut self,
-        AstVariableDeclarationStatement { name, value, .. }: &AstVariableDeclarationStatement,
+        variable_declaration_statement: &AstVariableDeclarationStatement,
     ) {
-        let address = self.get_or_add_scope_variable(&name.text);
-        self.emit_expression(value);
-        self.add(Instruction::AssignVariable(address));
+        // The variable for the function should be registered already due to hoisting.
+        // So we just assign it here.
+        self.emit_expression(&variable_declaration_statement.value);
+        self.emit_variable_assign_instruction(&variable_declaration_statement.name.text);
     }
 
     pub fn emit_variable_assignment_statement(
@@ -187,8 +186,7 @@ impl<'parent> Builder<'parent> {
     ) {
         let name = &name.text;
         if *operator != AssignmentOperator::Direct {
-            let address = self.get_or_capture_variable(name);
-            self.add(Instruction::PushVariable(address));
+            self.emit_variable_push_instruction(name);
         }
 
         match operator {
@@ -214,8 +212,7 @@ impl<'parent> Builder<'parent> {
             AssignmentOperator::Ncl => self.emit_ncl_operation(value),
         }
 
-        let address = self.get_or_capture_variable(name);
-        self.add(Instruction::AssignVariable(address));
+        self.emit_variable_assign_instruction(name);
     }
 
     pub fn emit_chain_assignment_statement(

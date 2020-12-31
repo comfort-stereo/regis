@@ -29,7 +29,7 @@ pub enum AstTraverseVariant<'a> {
     BreakStatement(&'a AstBreakStatement),
     ContinueStatement(&'a AstContinueStatement),
     EchoStatement(&'a AstEchoStatement),
-    FunctionStatement(&'a AstFunctionStatement),
+    FunctionStatement(&'a AstFunctionDeclarationStatement),
     VariableDeclarationStatement(&'a AstVariableDeclarationStatement),
     VariableAssignmentStatement(&'a AstVariableAssignmentStatement),
     AstChainAssignmentStatement(&'a AstChainAssignmentStatementVariant),
@@ -65,7 +65,9 @@ impl<'a> AstTraverseVariant<'a> {
             AstStatementVariant::BreakStatement(statement) => Self::BreakStatement(statement),
             AstStatementVariant::ContinueStatement(statement) => Self::ContinueStatement(statement),
             AstStatementVariant::EchoStatement(statement) => Self::EchoStatement(statement),
-            AstStatementVariant::FunctionStatement(statement) => Self::FunctionStatement(statement),
+            AstStatementVariant::FunctionDeclarationStatement(statement) => {
+                Self::FunctionStatement(statement)
+            }
             AstStatementVariant::VariableDeclarationStatement(statement) => {
                 Self::VariableDeclarationStatement(statement)
             }
@@ -269,7 +271,10 @@ impl<'a> Iterator for AstTraversal<'a> {
             AstTraverseVariant::EchoStatement(AstEchoStatement { value, .. }) => {
                 self.stack.push(AstTraverseVariant::from_expression(value));
             }
-            AstTraverseVariant::FunctionStatement(AstFunctionStatement { function, .. }) => {
+            AstTraverseVariant::FunctionStatement(AstFunctionDeclarationStatement {
+                function,
+                ..
+            }) => {
                 self.stack.push(AstTraverseVariant::Function(function));
             }
             AstTraverseVariant::VariableDeclarationStatement(AstVariableDeclarationStatement {

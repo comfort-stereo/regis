@@ -11,7 +11,7 @@ use super::super::procedure::Procedure;
 use super::super::variable::Parameter;
 use super::Builder;
 
-impl<'parent> Builder<'parent> {
+impl<'environment> Builder<'environment> {
     pub fn emit_expression(&mut self, expression: &AstExpressionVariant) {
         match expression {
             AstExpressionVariant::Null(null) => self.emit_null(null),
@@ -52,8 +52,7 @@ impl<'parent> Builder<'parent> {
     }
 
     pub fn emit_variable(&mut self, AstVariable { name, .. }: &AstVariable) {
-        let address = self.get_or_capture_variable(&name.text);
-        self.add(Instruction::PushVariable(address));
+        self.emit_variable_push_instruction(&name.text);
     }
 
     pub fn emit_list(&mut self, AstList { values, .. }: &AstList) {
@@ -102,13 +101,17 @@ impl<'parent> Builder<'parent> {
             .map(|parameter| parameter.text.clone())
             .collect::<Vec<_>>();
 
-        let bytecode = {
-            let mut builder = Builder::new_child(&self);
+        let mut environment = self.environment.for_function();
+        {
             for parameter in &parameters {
-                builder.add_parameter(Parameter {
+                environment.add_parameter(Parameter {
                     name: parameter.clone(),
                 });
             }
+        }
+
+        let mut builder = Builder::new(&mut environment);
+        {
             match body {
                 AstFunctionBodyVariant::Block(block) => {
                     builder.emit_function_block(&block);
@@ -117,10 +120,10 @@ impl<'parent> Builder<'parent> {
                     builder.emit_expression(&expression)
                 }
             }
-            builder.build()
-        };
+        }
 
-        let procedure = Procedure::new(name, parameters, bytecode);
+        let bytecode = builder.build();
+        let procedure = Procedure::new(name, bytecode, environment);
         self.add(Instruction::CreateFunction(procedure.into()));
     }
 
