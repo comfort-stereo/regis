@@ -1,61 +1,55 @@
-use crate::ast::expression::AstExpressionVariant;
-use crate::ast::operator::AssignmentOperator;
+use crate::ast::AssignmentOperator;
+use crate::ast::Expr;
 
 use super::super::instruction::Instruction;
 use super::Builder;
 
 impl<'environment> Builder<'environment> {
-    pub fn emit_ncl_operation(&mut self, value: &AstExpressionVariant) {
+    pub fn emit_ncl_operation(&mut self, value: &Expr) {
         self.add(Instruction::Duplicate);
         self.add(Instruction::IsNull);
         let jump_end_if_not_null = self.blank();
         self.add(Instruction::Pop);
-        self.emit_expression(value);
+        self.emit_expr(value);
         self.set(jump_end_if_not_null, Instruction::JumpUnless(self.end()));
     }
 
-    pub fn emit_and_operation(&mut self, value: &AstExpressionVariant) {
+    pub fn emit_and_operation(&mut self, value: &Expr) {
         self.add(Instruction::Duplicate);
         let jump_end_if_false = self.blank();
         self.add(Instruction::Pop);
-        self.emit_expression(value);
+        self.emit_expr(value);
         self.set(jump_end_if_false, Instruction::JumpUnless(self.end()));
     }
 
-    pub fn emit_or_operation(&mut self, value: &AstExpressionVariant) {
+    pub fn emit_or_operation(&mut self, value: &Expr) {
         self.add(Instruction::Duplicate);
         let jump_end_if_true = self.blank();
         self.add(Instruction::Pop);
-        self.emit_expression(value);
+        self.emit_expr(value);
         self.set(jump_end_if_true, Instruction::JumpIf(self.end()));
     }
 
-    pub fn emit_set_index_value(
-        &mut self,
-        operator: &AssignmentOperator,
-        value: &AstExpressionVariant,
-    ) {
+    pub fn emit_set_index_value(&mut self, operator: &AssignmentOperator, value: &Expr) {
         match operator {
-            AssignmentOperator::Direct => self.emit_expression(value),
-            AssignmentOperator::Mul => {
-                self.emit_expression(value);
+            AssignmentOperator::Assign => self.emit_expr(value),
+            AssignmentOperator::MulAssign => {
+                self.emit_expr(value);
                 self.add(Instruction::BinaryMul);
             }
-            AssignmentOperator::Div => {
-                self.emit_expression(value);
+            AssignmentOperator::DivAssign => {
+                self.emit_expr(value);
                 self.add(Instruction::BinaryDiv);
             }
-            AssignmentOperator::Add => {
-                self.emit_expression(value);
+            AssignmentOperator::AddAssign => {
+                self.emit_expr(value);
                 self.add(Instruction::BinaryAdd);
             }
-            AssignmentOperator::Sub => {
-                self.emit_expression(value);
+            AssignmentOperator::SubAssign => {
+                self.emit_expr(value);
                 self.add(Instruction::BinarySub);
             }
-            AssignmentOperator::And => self.emit_and_operation(value),
-            AssignmentOperator::Or => self.emit_or_operation(value),
-            AssignmentOperator::Ncl => self.emit_ncl_operation(value),
+            AssignmentOperator::NclAssign => self.emit_ncl_operation(value),
         }
     }
 }

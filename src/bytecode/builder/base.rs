@@ -1,58 +1,52 @@
-use crate::ast::base::{AstBlock, AstModule};
-use crate::ast::statement::{
-    AstFunctionDeclarationStatement, AstStatementVariant, AstVariableDeclarationStatement,
-};
+use crate::ast::*;
 
 use super::super::instruction::Instruction;
 use super::Builder;
 
 impl<'environment> Builder<'environment> {
-    pub fn emit_module(&mut self, AstModule { statements, .. }: &AstModule) {
+    pub fn emit_chunk(&mut self, Chunk { stmts, .. }: &Chunk) {
         self.environment.push_scope();
-        let statements = self.hoist(statements);
-        for statement in statements {
-            self.emit_statement(&statement);
+        let stmts = self.hoist(stmts);
+        for stmt in stmts {
+            self.emit_stmt(&stmt);
         }
         self.environment.pop_scope();
     }
 
-    pub fn emit_block(&mut self, AstBlock { statements, .. }: &AstBlock) {
+    pub fn emit_block(&mut self, Block { stmts, .. }: &Block) {
         self.environment.push_scope();
-        let statements = self.hoist(statements);
-        for statement in statements {
-            self.emit_statement(&statement);
+        let stmts = self.hoist(stmts);
+        for stmt in stmts {
+            self.emit_stmt(&stmt);
         }
         self.environment.pop_scope();
     }
 
-    pub fn emit_function_block(&mut self, AstBlock { statements, .. }: &AstBlock) {
-        let statements = self.hoist(&statements);
-        for statement in &statements {
-            self.emit_statement(statement);
+    pub fn emit_function_block(&mut self, Block { stmts, .. }: &Block) {
+        let stmts = self.hoist(&stmts);
+        for stmt in &stmts {
+            self.emit_stmt(stmt);
         }
 
-        if !statements
-            .iter()
-            .any(|statement| matches!(statement, AstStatementVariant::ReturnStatement(..)))
-        {
+        if !stmts.iter().any(|stmt| matches!(stmt, Stmt::Return(..))) {
             self.add(Instruction::PushNull);
         }
     }
 
-    fn hoist<'b>(&mut self, statements: &'b [AstStatementVariant]) -> Vec<&'b AstStatementVariant> {
-        let mut result = statements.iter().collect::<Vec<_>>();
-        result.sort_by_key(|statement| match statement {
-            AstStatementVariant::FunctionDeclarationStatement(..) => 0,
+    fn hoist<'b>(&mut self, stmts: &'b [Stmt]) -> Vec<&'b Stmt> {
+        let mut result = stmts.iter().collect::<Vec<_>>();
+        result.sort_by_key(|stmt| match stmt {
+            Stmt::FunctionDeclaration(..) => 0,
             _ => 1,
         });
 
-        for statement in &result {
-            match statement {
-                AstStatementVariant::VariableDeclarationStatement(statement) => {
-                    self.register_variable_declaration(statement);
+        for stmt in &result {
+            match stmt {
+                Stmt::VariableDeclaration(stmt) => {
+                    self.register_variable_declaration(stmt);
                 }
-                AstStatementVariant::FunctionDeclarationStatement(statement) => {
-                    self.register_function_declaration(statement);
+                Stmt::FunctionDeclaration(stmt) => {
+                    self.register_function_declaration(stmt);
                 }
                 _ => {}
             }
@@ -63,11 +57,11 @@ impl<'environment> Builder<'environment> {
 
     fn register_function_declaration(
         &mut self,
-        AstFunctionDeclarationStatement {
+        FunctionDeclarationStmt {
             is_exported,
             function,
             ..
-        }: &AstFunctionDeclarationStatement,
+        }: &FunctionDeclarationStmt,
     ) {
         if let Some(name) = &function.name {
             if *is_exported {
@@ -80,9 +74,9 @@ impl<'environment> Builder<'environment> {
 
     fn register_variable_declaration(
         &mut self,
-        AstVariableDeclarationStatement {
+        VariableDeclarationStmt {
             is_exported, name, ..
-        }: &AstVariableDeclarationStatement,
+        }: &VariableDeclarationStmt,
     ) {
         if *is_exported {
             self.environment.register_export_variable(name.text.clone());

@@ -1,6 +1,5 @@
-use crate::ast::base::AstModule;
-use crate::ast::Ast;
-use crate::path::CanonicalPath;
+use crate::ast::Chunk;
+use crate::source::CanonicalPath;
 
 use super::environment::Environment;
 use super::{Builder, Bytecode};
@@ -21,10 +20,10 @@ impl Module {
         }
     }
 
-    pub fn build(path: CanonicalPath, ast: &Ast<AstModule>, environment: Environment) -> Self {
+    pub fn build(path: CanonicalPath, chunk: &Chunk, environment: Environment) -> Self {
         let mut environment_mut = environment;
         let mut builder = Builder::new(&mut environment_mut);
-        builder.emit_module(ast.root());
+        builder.emit_chunk(chunk);
         let bytecode = builder.build();
 
         Self::new(path, bytecode, environment_mut)

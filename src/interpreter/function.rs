@@ -2,17 +2,16 @@ use std::fmt::{Debug, Display, Formatter, Result as FormatResult};
 use std::hash::{Hash, Hasher};
 
 use crate::bytecode::Procedure;
-use crate::shared::{SharedImmutable, SharedMutable};
+use crate::shared::SharedImmutable;
 
-use super::capture::Capture;
 use super::rid::rid;
 use super::value::ValueType;
-use super::ExternalProcedure;
+use super::{ExternalProcedure, StackValue};
 
 pub struct Function {
     id: usize,
     procedure: ProcedureVariant,
-    captures: Vec<SharedMutable<Capture>>,
+    init: Box<[StackValue]>,
 }
 
 impl PartialEq for Function {
@@ -54,16 +53,13 @@ impl Function {
         Self {
             id: rid(),
             procedure,
-            captures: Vec::new(),
+            init: Box::new([]),
         }
     }
 
-    pub fn with_captures(
-        procedure: ProcedureVariant,
-        captures: Vec<SharedMutable<Capture>>,
-    ) -> Self {
+    pub fn with_init(procedure: ProcedureVariant, init: Box<[StackValue]>) -> Self {
         Self {
-            captures,
+            init,
             ..Self::new(procedure)
         }
     }
@@ -87,8 +83,8 @@ impl Function {
         &self.procedure
     }
 
-    pub fn captures(&self) -> &Vec<SharedMutable<Capture>> {
-        &self.captures
+    pub fn init(&self) -> &[StackValue] {
+        &self.init
     }
 }
 

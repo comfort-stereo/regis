@@ -1,31 +1,38 @@
-use std::fs;
 use std::str::from_utf8;
 
-use crate::ast::location::{Location, Position};
 use crate::interpreter::ValueType;
+use crate::source::{Location, Span};
 
 #[derive(Debug)]
 pub struct RegisError {
-    pub location: Option<Location>,
-    pub variant: RegisErrorVariant,
+    location: Option<Location>,
+    variant: RegisErrorVariant,
 }
 
 impl RegisError {
     pub fn new(location: Option<Location>, variant: RegisErrorVariant) -> Self {
         Self { location, variant }
     }
+
+    pub fn location(&self) -> &Option<Location> {
+        &self.location
+    }
+
+    pub fn variant(&self) -> &RegisErrorVariant {
+        &self.variant
+    }
 }
 
 #[derive(Debug)]
 pub enum RegisErrorVariant {
-    UndefinedBinaryOperation {
-        operation: String,
-        target_type: ValueType,
-        other_type: ValueType,
-    },
     UndefinedUnaryOperation {
         operation: String,
-        target_type: ValueType,
+        right_type: ValueType,
+    },
+    UndefinedBinaryOperation {
+        operation: String,
+        left_type: ValueType,
+        right_type: ValueType,
     },
     IndexOutOfBoundsError {
         message: String,
@@ -42,7 +49,7 @@ pub enum RegisErrorVariant {
         path: String,
     },
     ParseError {
-        expected: Vec<String>,
+        message: String,
     },
 }
 
@@ -53,25 +60,24 @@ struct RegisErrorMessageDisplay {
 }
 
 impl RegisError {
-    pub fn show(&self) -> String {
+    pub fn show(&self, source: Option<&str>) -> String {
         let message = self.display_message();
         let mut output = Vec::new();
 
-        if let Some(location) = &self.location {
-            let Location { path, .. } = location.clone();
-            let Position { line, column, .. } = location.start;
-            if let Some(path) = path {
-                if let Ok(source) = fs::read_to_string(&path) {
-                    let code = Self::show_location(&location, &source);
-                    let padding = " ".repeat(line.to_string().len());
+        if let Some(source) = source {
+            if let Some(location) = &self.location() {
+                let (line, column, code) = Self::span_info(location.span(), &source);
 
+                if let Some(path) = &location.path() {
                     output.push(format!("- error -> {} -> {}:{}", path, line, column));
-                    output.push(format!("{} |", padding));
-                    output.push(format!("{} | {}", line, code));
-                    output.push(format!("{} |{}^", padding, " ".repeat(column)));
+                } else {
+                    output.push(format!("- error -> {}:{}", line, column));
                 }
-            } else {
-                output.push(format!("- error -> {}:{}", line, column));
+
+                let padding = " ".repeat(line.to_string().len());
+                output.push(format!("{} |", padding));
+                output.push(format!("{} | {}", line, code));
+                output.push(format!("{} |{}^", padding, " ".repeat(column)));
             }
         }
 
@@ -83,8 +89,8 @@ impl RegisError {
         match &self.variant {
             RegisErrorVariant::UndefinedBinaryOperation {
                 operation,
-                target_type,
-                other_type,
+                left_type: target_type,
+                right_type: other_type,
             } => {
                 format!(
                     "Operation '{}' is not defined for types '{}' and '{}'.",
@@ -93,7 +99,7 @@ impl RegisError {
             }
             RegisErrorVariant::UndefinedUnaryOperation {
                 operation,
-                target_type,
+                right_type: target_type,
             } => {
                 format!(
                     "Operation '{}' is not defined for type '{}'.",
@@ -120,26 +126,51 @@ impl RegisError {
                 "Imported module at path '{}' does not exist.",
                 path,
             ),
-            RegisErrorVariant::ParseError { expected } => format!(
-                "Invalid syntax, expected: {}",
-                expected.join(" | "),
-            )
+            RegisErrorVariant::ParseError { message } => format!( "Invalid syntax. {}", message),
         }
     }
 
-    fn show_location(location: &Location, source: &str) -> String {
+    fn span_info(span: &Span, source: &str) -> (usize, usize, String) {
+        fn is_newline(string: &str, index: usize) -> bool {
+            string.is_char_boundary(index) && string.as_bytes()[index] as char == '\n'
+        }
+
         let bytes = source.as_bytes();
+        let code = {
+            let mut start = span.start().min(bytes.len() - 1).max(0);
+            let mut end = start;
 
-        let mut start = location.start.index.min(bytes.len() - 1).max(0);
-        let mut end = start;
+            while start > 0 && !is_newline(source, start) {
+                start -= 1;
+            }
 
-        while start > 0 && (bytes[start] as char) != '\n' {
-            start -= 1;
-        }
-        while end < source.len() && (bytes[end] as char) != '\n' {
-            end += 1;
-        }
+            while end < source.len() && !is_newline(source, end) {
+                end += 1;
+            }
 
-        from_utf8(&bytes[start..end]).unwrap().trim().into()
+            from_utf8(&bytes[start..end]).unwrap()
+        };
+
+        let (line, column) = {
+            let mut line = 1;
+            let mut column = 1;
+
+            for (i, character) in source.char_indices() {
+                if i == span.start() {
+                    break;
+                }
+
+                if character == '\n' {
+                    line += 1;
+                    column = 1;
+                } else {
+                    column += 1;
+                }
+            }
+
+            (line, column)
+        };
+
+        (line, column, code.into())
     }
 }

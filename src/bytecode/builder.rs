@@ -1,8 +1,8 @@
 mod base;
-mod expression;
+mod expr;
 mod marker;
 mod operator;
-mod statement;
+mod stmt;
 
 use std::collections::{BTreeMap, HashSet};
 

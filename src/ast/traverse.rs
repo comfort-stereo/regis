@@ -1,106 +1,28 @@
 use super::base::*;
-use super::expression::*;
-use super::statement::*;
+use super::expr::*;
+use super::node::*;
+use super::stmt::*;
 
-pub enum AstTraverseVariant<'a> {
-    // Base
-    Module(&'a AstModule),
-    Block(&'a AstBlock),
-    Identifier(&'a AstIdentifier),
-    // Expressions
-    Null(&'a AstNull),
-    Boolean(&'a AstBoolean),
-    Int(&'a AstInt),
-    Float(&'a AstFloat),
-    String(&'a AstString),
-    Variable(&'a AstVariable),
-    List(&'a AstList),
-    Object(&'a AstObject),
-    Function(&'a AstFunction),
-    Wrapped(&'a AstWrapped),
-    Chain(&'a AstChainVariant),
-    BinaryOperation(&'a AstBinaryOperation),
-    // Statements
-    IfStatement(&'a AstIfStatement),
-    ElseStatement(&'a AstElseStatement),
-    LoopStatement(&'a AstLoopStatement),
-    WhileStatement(&'a AstWhileStatement),
-    ReturnStatement(&'a AstReturnStatement),
-    BreakStatement(&'a AstBreakStatement),
-    ContinueStatement(&'a AstContinueStatement),
-    EchoStatement(&'a AstEchoStatement),
-    FunctionStatement(&'a AstFunctionDeclarationStatement),
-    VariableDeclarationStatement(&'a AstVariableDeclarationStatement),
-    VariableAssignmentStatement(&'a AstVariableAssignmentStatement),
-    AstChainAssignmentStatement(&'a AstChainAssignmentStatementVariant),
-    AstPushStatement(&'a AstPushStatement),
-    AstExpressionStatement(&'a AstExpressionStatement),
-}
-
-impl<'a> AstTraverseVariant<'a> {
-    fn from_expression(expression: &'a AstExpressionVariant) -> Self {
-        match expression {
-            AstExpressionVariant::Null(expression) => Self::Null(expression),
-            AstExpressionVariant::Boolean(expression) => Self::Boolean(expression),
-            AstExpressionVariant::Int(expression) => Self::Int(expression),
-            AstExpressionVariant::Float(expression) => Self::Float(expression),
-            AstExpressionVariant::String(expression) => Self::String(expression),
-            AstExpressionVariant::Variable(expression) => Self::Variable(expression),
-            AstExpressionVariant::List(expression) => Self::List(expression),
-            AstExpressionVariant::Object(expression) => Self::Object(expression),
-            AstExpressionVariant::Function(expression) => Self::Function(expression),
-            AstExpressionVariant::Wrapped(expression) => Self::Wrapped(expression),
-            AstExpressionVariant::Chain(expression) => Self::Chain(expression),
-            AstExpressionVariant::BinaryOperation(expression) => Self::BinaryOperation(expression),
-        }
-    }
-
-    fn from_statement(statement: &'a AstStatementVariant) -> Self {
-        match statement {
-            AstStatementVariant::IfStatement(statement) => Self::IfStatement(statement),
-            AstStatementVariant::ElseStatement(statement) => Self::ElseStatement(statement),
-            AstStatementVariant::LoopStatement(statement) => Self::LoopStatement(statement),
-            AstStatementVariant::WhileStatement(statement) => Self::WhileStatement(statement),
-            AstStatementVariant::ReturnStatement(statement) => Self::ReturnStatement(statement),
-            AstStatementVariant::BreakStatement(statement) => Self::BreakStatement(statement),
-            AstStatementVariant::ContinueStatement(statement) => Self::ContinueStatement(statement),
-            AstStatementVariant::EchoStatement(statement) => Self::EchoStatement(statement),
-            AstStatementVariant::FunctionDeclarationStatement(statement) => {
-                Self::FunctionStatement(statement)
-            }
-            AstStatementVariant::VariableDeclarationStatement(statement) => {
-                Self::VariableDeclarationStatement(statement)
-            }
-            AstStatementVariant::VariableAssignmentStatement(statement) => {
-                Self::VariableAssignmentStatement(statement)
-            }
-            AstStatementVariant::AstChainAssignmentStatement(statement) => {
-                Self::AstChainAssignmentStatement(statement)
-            }
-            AstStatementVariant::AstPushStatement(statement) => Self::AstPushStatement(statement),
-            AstStatementVariant::AstExpressionStatement(statement) => {
-                Self::AstExpressionStatement(statement)
-            }
-        }
-    }
-}
-
-pub type AstTraverseFilter<'a> = fn(current: &AstTraverseVariant<'a>) -> AstTraversalState;
+pub type TraverseFilter<'a> = fn(current: &Node<'a>) -> TraverseState;
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum AstTraversalState {
+pub enum TraverseState {
     Continue,
     Stop,
     Exit,
 }
 
-pub struct AstTraversal<'a> {
-    stack: Vec<AstTraverseVariant<'a>>,
-    filter: Option<AstTraverseFilter<'a>>,
+pub struct Traverse<'a> {
+    stack: Vec<Node<'a>>,
+    filter: Option<TraverseFilter<'a>>,
 }
 
-impl<'a> AstTraversal<'a> {
-    pub fn new(root: AstTraverseVariant<'a>, filter: Option<AstTraverseFilter<'a>>) -> Self {
+impl<'a> Traverse<'a> {
+    pub fn new(root: Node<'a>) -> Self {
+        Self::with_filter(root, None)
+    }
+
+    pub fn with_filter(root: Node<'a>, filter: Option<TraverseFilter<'a>>) -> Self {
         Self {
             stack: vec![root],
             filter,
@@ -108,8 +30,8 @@ impl<'a> AstTraversal<'a> {
     }
 }
 
-impl<'a> Iterator for AstTraversal<'a> {
-    type Item = AstTraverseVariant<'a>;
+impl<'a> Iterator for Traverse<'a> {
+    type Item = Node<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let current = match self.stack.pop() {
@@ -120,204 +42,157 @@ impl<'a> Iterator for AstTraversal<'a> {
         let state = if let Some(state_function) = self.filter {
             state_function(&current)
         } else {
-            AstTraversalState::Continue
+            TraverseState::Continue
         };
 
-        if state == AstTraversalState::Exit {
+        if state == TraverseState::Exit {
             return None;
         }
 
-        if state == AstTraversalState::Stop {
+        if state == TraverseState::Stop {
             return Some(current);
         }
 
         match &current {
             // Base
-            AstTraverseVariant::Module(AstModule { statements, .. }) => {
-                self.stack
-                    .extend(statements.iter().map(AstTraverseVariant::from_statement));
+            Node::Chunk(Chunk { stmts, .. }) => {
+                self.stack.extend(stmts.iter().map(Node::from_stmt));
             }
-            AstTraverseVariant::Block(AstBlock { statements, .. }) => {
-                self.stack
-                    .extend(statements.iter().map(AstTraverseVariant::from_statement));
+            Node::Block(Block { stmts, .. }) => {
+                self.stack.extend(stmts.iter().map(Node::from_stmt));
             }
-            AstTraverseVariant::Identifier(..) => {}
+            Node::Ident(..) => {}
             // Expressions
-            AstTraverseVariant::Null(..) => {}
-            AstTraverseVariant::Boolean(..) => {}
-            AstTraverseVariant::Int(..) => {}
-            AstTraverseVariant::Float(..) => {}
-            AstTraverseVariant::String(..) => {}
-            AstTraverseVariant::Variable(AstVariable { name, .. }) => {
-                self.stack.push(AstTraverseVariant::Identifier(name));
+            Node::NullExpr(..) => {}
+            Node::BooleanExpr(..) => {}
+            Node::IntExpr(..) => {}
+            Node::FloatExpr(..) => {}
+            Node::StringExpr(..) => {}
+            Node::VariableExpr(VariableExpr { name, .. }) => {
+                self.stack.push(Node::Ident(name));
             }
-            AstTraverseVariant::List(AstList { values, .. }) => {
-                self.stack
-                    .extend(values.iter().map(AstTraverseVariant::from_expression));
+            Node::ListExpr(ListExpr { values, .. }) => {
+                self.stack.extend(values.iter().map(Node::from_expr));
             }
-            AstTraverseVariant::Object(AstObject { pairs, .. }) => {
-                // TODO: Yield pairs directly.
-                for AstPair { key, value, .. } in pairs {
+            Node::ObjectExpr(ObjectExpr { pairs, .. }) => {
+                for ObjectExprPair { key, value, .. } in pairs {
                     match key {
-                        AstKeyVariant::Identifier(identifier) => {
-                            self.stack.push(AstTraverseVariant::Identifier(identifier));
+                        ObjectExprKeyVariant::Identifier(identifier) => {
+                            self.stack.push(Node::Ident(identifier));
                         }
-                        AstKeyVariant::String(string) => {
-                            self.stack.push(AstTraverseVariant::String(string));
+                        ObjectExprKeyVariant::String(string) => {
+                            self.stack.push(Node::StringExpr(string));
                         }
-                        AstKeyVariant::KeyExpression(AstKeyExpression { value, .. }) => {
-                            self.stack.push(AstTraverseVariant::from_expression(value));
+                        ObjectExprKeyVariant::Expr(ObjectExprKeyExpr { value, .. }) => {
+                            self.stack.push(Node::from_expr(value));
                         }
                     }
 
-                    self.stack.push(AstTraverseVariant::from_expression(value));
+                    self.stack.push(Node::from_expr(value));
                 }
             }
-            AstTraverseVariant::Function(AstFunction {
+            Node::FunctionExpr(FunctionExpr {
                 name,
                 parameters,
                 body,
                 ..
             }) => {
                 if let Some(name) = name {
-                    self.stack.push(AstTraverseVariant::Identifier(&name));
+                    self.stack.push(Node::Ident(&name));
                 }
-                self.stack.extend(
-                    parameters
-                        .iter()
-                        .map(|parameter| AstTraverseVariant::Identifier(&parameter)),
-                );
+                self.stack
+                    .extend(parameters.iter().map(|parameter| Node::Ident(&parameter)));
                 self.stack.push(match body {
-                    AstFunctionBodyVariant::Block(block) => AstTraverseVariant::Block(block),
-                    AstFunctionBodyVariant::Expression(expression) => {
-                        AstTraverseVariant::from_expression(expression)
-                    }
+                    FunctionExprBody::Block(block) => Node::Block(block),
+                    FunctionExprBody::Expr(expr) => Node::from_expr(expr),
                 });
             }
-            AstTraverseVariant::Wrapped(AstWrapped { value, .. }) => {
-                self.stack.push(AstTraverseVariant::from_expression(value));
+            Node::WrappedExpr(WrappedExpr { value, .. }) => {
+                self.stack.push(Node::from_expr(value));
             }
-            AstTraverseVariant::Chain(variant) => match variant {
-                AstChainVariant::Index(index) => {
-                    self.stack.push(AstTraverseVariant::Chain(&index.target));
-                    self.stack
-                        .push(AstTraverseVariant::from_expression(&index.index));
-                }
-                AstChainVariant::Dot(dot) => {
-                    self.stack.push(AstTraverseVariant::Chain(&dot.target));
-                    self.stack
-                        .push(AstTraverseVariant::Identifier(&dot.property));
-                }
-                AstChainVariant::Call(call) => {
-                    self.stack.push(AstTraverseVariant::Chain(&call.target));
-                    self.stack.extend(
-                        call.arguments
-                            .iter()
-                            .map(|argument| AstTraverseVariant::from_expression(argument)),
-                    );
-                }
-                AstChainVariant::Expression(expression) => {
-                    self.stack
-                        .push(AstTraverseVariant::from_expression(expression));
-                }
-            },
-            AstTraverseVariant::BinaryOperation(AstBinaryOperation { left, right, .. }) => {
-                self.stack.push(AstTraverseVariant::from_expression(left));
-                self.stack.push(AstTraverseVariant::from_expression(right));
+            Node::IndexExpr(index) => {
+                self.stack.push(Node::IndexExpr(&index));
+                self.stack.push(Node::from_expr(&index.target));
+                self.stack.push(Node::from_expr(&index.index));
             }
-            AstTraverseVariant::IfStatement(AstIfStatement {
+            Node::DotExpr(dot) => {
+                self.stack.push(Node::DotExpr(&dot));
+                self.stack.push(Node::from_expr(&dot.target));
+                self.stack.push(Node::Ident(&dot.property));
+            }
+            Node::CallExpr(call) => {
+                self.stack.push(Node::CallExpr(&call));
+                self.stack.push(Node::from_expr(&call.target));
+                self.stack.extend(
+                    call.arguments
+                        .iter()
+                        .map(|argument| Node::from_expr(argument)),
+                );
+            }
+            Node::UnaryOperationExpr(UnaryOperationExpr { right, .. }) => {
+                self.stack.push(Node::from_expr(right));
+            }
+            Node::BinaryOperationExpr(BinaryOperationExpr { left, right, .. }) => {
+                self.stack.push(Node::from_expr(left));
+                self.stack.push(Node::from_expr(right));
+            }
+            // Statements
+            Node::IfStmt(IfStmt {
                 condition,
                 block,
-                else_statement,
+                else_clause,
                 ..
             }) => {
-                self.stack
-                    .push(AstTraverseVariant::from_expression(condition));
-                self.stack.push(AstTraverseVariant::Block(block));
-                if let Some(else_statement) = else_statement {
-                    self.stack
-                        .push(AstTraverseVariant::ElseStatement(else_statement))
-                }
-            }
-            AstTraverseVariant::ElseStatement(AstElseStatement { next, .. }) => {
-                if let Some(next) = next {
-                    self.stack.push(match next {
-                        AstElseStatementNextVariant::Block(block) => {
-                            AstTraverseVariant::Block(block)
-                        }
-                        AstElseStatementNextVariant::IfStatement(if_statement) => {
-                            AstTraverseVariant::IfStatement(if_statement)
-                        }
+                self.stack.push(Node::from_expr(condition));
+                self.stack.push(Node::Block(block));
+                if let Some(else_clause) = else_clause {
+                    self.stack.push(match &else_clause.next {
+                        ElseClauseNextVariant::Block(block) => Node::Block(block),
+                        ElseClauseNextVariant::IfStmt(if_stmt) => Node::IfStmt(if_stmt),
                     })
                 }
             }
-            AstTraverseVariant::LoopStatement(AstLoopStatement { block, .. }) => {
-                self.stack.push(AstTraverseVariant::Block(block));
+            Node::LoopStmt(LoopStmt { block, .. }) => {
+                self.stack.push(Node::Block(block));
             }
-            AstTraverseVariant::WhileStatement(AstWhileStatement {
+            Node::WhileStmt(WhileStmt {
                 condition, block, ..
             }) => {
-                self.stack
-                    .push(AstTraverseVariant::from_expression(condition));
-                self.stack.push(AstTraverseVariant::Block(block));
+                self.stack.push(Node::from_expr(condition));
+                self.stack.push(Node::Block(block));
             }
-            AstTraverseVariant::ReturnStatement(AstReturnStatement { value, .. }) => {
+            Node::ReturnStmt(ReturnStmt { value, .. }) => {
                 if let Some(value) = value {
-                    self.stack.push(AstTraverseVariant::from_expression(value));
+                    self.stack.push(Node::from_expr(value));
                 }
             }
-            AstTraverseVariant::BreakStatement(..) => {}
-            AstTraverseVariant::ContinueStatement(..) => {}
-            AstTraverseVariant::EchoStatement(AstEchoStatement { value, .. }) => {
-                self.stack.push(AstTraverseVariant::from_expression(value));
+            Node::BreakStmt(..) => {}
+            Node::ContinueStmt(..) => {}
+            Node::FunctionStmt(FunctionDeclarationStmt { function, .. }) => {
+                self.stack.push(Node::FunctionExpr(function));
             }
-            AstTraverseVariant::FunctionStatement(AstFunctionDeclarationStatement {
-                function,
-                ..
+            Node::VariableDeclarationStmt(VariableDeclarationStmt { name, value, .. }) => {
+                self.stack.push(Node::Ident(name));
+                self.stack.push(Node::from_expr(value));
+            }
+            Node::VariableAssignmentStmt(VariableAssignmentStmt { name, value, .. }) => {
+                self.stack.push(Node::Ident(name));
+                self.stack.push(Node::from_expr(value));
+            }
+            Node::IndexAssignmentStmt(IndexAssignmentStmt {
+                index_expr, value, ..
             }) => {
-                self.stack.push(AstTraverseVariant::Function(function));
+                self.stack.push(Node::from_expr(&index_expr.index));
+                self.stack.push(Node::from_expr(&value));
             }
-            AstTraverseVariant::VariableDeclarationStatement(AstVariableDeclarationStatement {
-                name,
-                value,
-                ..
+            Node::DotAssignmentStmt(DotAssignmentStmt {
+                dot_expr, value, ..
             }) => {
-                self.stack.push(AstTraverseVariant::Identifier(name));
-                self.stack.push(AstTraverseVariant::from_expression(value));
+                self.stack.push(Node::Ident(&dot_expr.property));
+                self.stack.push(Node::from_expr(&value));
             }
-            AstTraverseVariant::VariableAssignmentStatement(AstVariableAssignmentStatement {
-                name,
-                value,
-                ..
-            }) => {
-                self.stack.push(AstTraverseVariant::Identifier(name));
-                self.stack.push(AstTraverseVariant::from_expression(value));
-            }
-            // TODO: Yield index and dot expressions directly.
-            AstTraverseVariant::AstChainAssignmentStatement(variant) => match variant {
-                AstChainAssignmentStatementVariant::Index(index) => {
-                    self.stack
-                        .push(AstTraverseVariant::from_expression(&index.index.index));
-                    self.stack
-                        .push(AstTraverseVariant::from_expression(&index.value));
-                }
-                AstChainAssignmentStatementVariant::Dot(dot) => {
-                    self.stack
-                        .push(AstTraverseVariant::Identifier(&dot.dot.property));
-                    self.stack
-                        .push(AstTraverseVariant::from_expression(&dot.value));
-                }
-            },
-            AstTraverseVariant::AstPushStatement(AstPushStatement { target, value, .. }) => {
-                self.stack.push(AstTraverseVariant::from_expression(target));
-                self.stack.push(AstTraverseVariant::from_expression(value));
-            }
-            AstTraverseVariant::AstExpressionStatement(AstExpressionStatement {
-                expression,
-                ..
-            }) => {
-                self.stack
-                    .push(AstTraverseVariant::from_expression(expression));
+            Node::ExprStmt(ExprStmt { expr, .. }) => {
+                self.stack.push(Node::from_expr(expr));
             }
         }
 

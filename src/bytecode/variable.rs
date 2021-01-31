@@ -1,5 +1,5 @@
-use crate::path::CanonicalPath;
 use crate::shared::SharedImmutable;
+use crate::source::CanonicalPath;
 
 #[derive(Debug, Clone)]
 pub struct Parameter {

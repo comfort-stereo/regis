@@ -1,7 +1,8 @@
 use core::panic;
+use std::time::Duration;
 
 use crate::error::{RegisError, RegisErrorVariant};
-use crate::path::{CanonicalPath, RelativePath};
+use crate::source::{CanonicalPath, RelativePath};
 
 use super::function::ProcedureVariant;
 use super::native::ExternalCallContext;
@@ -9,6 +10,11 @@ use super::value::Value;
 use super::FrameVariant;
 
 pub fn print(arguments: &[Value], _: &mut ExternalCallContext) -> Result<Value, RegisError> {
+    print!("{}", arguments.first().unwrap());
+    Ok(Value::Null)
+}
+
+pub fn println(arguments: &[Value], _: &mut ExternalCallContext) -> Result<Value, RegisError> {
     println!("{}", arguments.first().unwrap());
     Ok(Value::Null)
 }
@@ -76,4 +82,25 @@ pub fn import(
             RegisErrorVariant::ModuleDoesNotExistError { path },
         ))
     }
+}
+
+pub fn sleep(arguments: &[Value], _: &mut ExternalCallContext) -> Result<Value, RegisError> {
+    let seconds = match arguments.first().unwrap() {
+        Value::Int(seconds) if *seconds >= 0 => *seconds as f64,
+        Value::Float(seconds) if *seconds >= 0.0 => *seconds,
+        other => {
+            return Err(RegisError::new(
+                None,
+                RegisErrorVariant::TypeError {
+                    message: format!(
+                        "Number of seconds passed to @sleep() must be a positive int or float. Got '{}'.",
+                        other.type_of()
+                    ),
+                },
+            ))
+        }
+    };
+
+    std::thread::sleep(Duration::from_secs_f64(seconds));
+    Ok(Value::Null)
 }

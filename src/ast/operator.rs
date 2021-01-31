@@ -1,67 +1,139 @@
-use super::grammar::GrammarRule;
+use crate::lexer::{Keyword, Symbol, Token, TokenKind};
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum UnaryOperator {
+    Neg,
+    BitNot,
+    Not,
+}
+
+impl UnaryOperator {
+    pub fn from_token(token: &Token<'_>) -> Option<Self> {
+        match token.kind() {
+            TokenKind::Keyword(keyword) => Self::from_keyword(keyword),
+            TokenKind::Symbol(symbol) => Self::from_symbol(symbol),
+            _ => None,
+        }
+    }
+
+    pub fn from_keyword(keyword: &Keyword) -> Option<Self> {
+        Some(match keyword {
+            Keyword::Not => Self::Not,
+            _ => return None,
+        })
+    }
+
+    pub fn from_symbol(symbol: &Symbol) -> Option<Self> {
+        Some(match symbol {
+            Symbol::Sub => Self::Neg,
+            Symbol::BitNot => Self::BitNot,
+            _ => return None,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BinaryOperator {
-    Ncl,
-    Mul,
-    Div,
     Add,
     Sub,
-    Gt,
-    Lt,
-    Gte,
-    Lte,
-    Eq,
-    Neq,
+    Mul,
+    Div,
+    Shl,
+    Shr,
+    BitAnd,
+    BitOr,
     And,
     Or,
+    Ncl,
+    Lt,
+    Gt,
+    Lte,
+    Gte,
+    Eq,
+    Neq,
 }
 
 impl BinaryOperator {
-    pub fn from_rule(rule: &GrammarRule) -> Self {
-        match rule {
-            GrammarRule::operator_binary_ncl => BinaryOperator::Ncl,
-            GrammarRule::operator_binary_mul => BinaryOperator::Mul,
-            GrammarRule::operator_binary_div => BinaryOperator::Div,
-            GrammarRule::operator_binary_add => BinaryOperator::Add,
-            GrammarRule::operator_binary_sub => BinaryOperator::Sub,
-            GrammarRule::operator_binary_gt => BinaryOperator::Gt,
-            GrammarRule::operator_binary_lt => BinaryOperator::Lt,
-            GrammarRule::operator_binary_gte => BinaryOperator::Gte,
-            GrammarRule::operator_binary_lte => BinaryOperator::Lte,
-            GrammarRule::operator_binary_eq => BinaryOperator::Eq,
-            GrammarRule::operator_binary_neq => BinaryOperator::Neq,
-            GrammarRule::operator_binary_and => BinaryOperator::And,
-            GrammarRule::operator_binary_or => BinaryOperator::Or,
-            _ => unreachable!(),
+    pub fn from_token(token: &Token<'_>) -> Option<Self> {
+        match token.kind() {
+            TokenKind::Keyword(keyword) => Self::from_keyword(keyword),
+            TokenKind::Symbol(symbol) => Self::from_symbol(symbol),
+            _ => None,
+        }
+    }
+
+    pub fn from_keyword(keyword: &Keyword) -> Option<Self> {
+        Some(match keyword {
+            Keyword::And => Self::And,
+            Keyword::Or => Self::Or,
+            _ => return None,
+        })
+    }
+
+    pub fn from_symbol(symbol: &Symbol) -> Option<Self> {
+        Some(match symbol {
+            Symbol::Add => Self::Add,
+            Symbol::Sub => Self::Sub,
+            Symbol::Mul => Self::Mul,
+            Symbol::Div => Self::Div,
+            Symbol::Shl => Self::Shl,
+            Symbol::Shr => Self::Shr,
+            Symbol::BitAnd => Self::BitAnd,
+            Symbol::BitOr => Self::BitOr,
+            Symbol::Ncl => Self::Ncl,
+            Symbol::Lt => Self::Lt,
+            Symbol::Gt => Self::Gt,
+            Symbol::Lte => Self::Lte,
+            Symbol::Gte => Self::Gte,
+            Symbol::Eq => Self::Eq,
+            Symbol::Neq => Self::Neq,
+            _ => return None,
+        })
+    }
+
+    pub fn precedence(&self) -> u8 {
+        match self {
+            Self::Ncl => 1,
+            Self::Mul | Self::Div => 2,
+            Self::Add | Self::Sub => 3,
+            Self::BitAnd => 4,
+            Self::BitOr => 5,
+            Self::Shl | Self::Shr => 6,
+            Self::Gt | Self::Lt | Self::Gte | Self::Lte => 7,
+            Self::Eq | Self::Neq => 8,
+            Self::And => 9,
+            Self::Or => 10,
         }
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AssignmentOperator {
-    Direct,
-    Mul,
-    Div,
-    Add,
-    Sub,
-    And,
-    Or,
-    Ncl,
+    Assign,
+    MulAssign,
+    DivAssign,
+    AddAssign,
+    SubAssign,
+    NclAssign,
 }
 
 impl AssignmentOperator {
-    pub fn from_rule(rule: &GrammarRule) -> Self {
-        match rule {
-            GrammarRule::operator_assign_direct => AssignmentOperator::Direct,
-            GrammarRule::operator_assign_ncl => AssignmentOperator::Ncl,
-            GrammarRule::operator_assign_mul => AssignmentOperator::Mul,
-            GrammarRule::operator_assign_div => AssignmentOperator::Div,
-            GrammarRule::operator_assign_add => AssignmentOperator::Add,
-            GrammarRule::operator_assign_sub => AssignmentOperator::Sub,
-            GrammarRule::operator_assign_and => AssignmentOperator::And,
-            GrammarRule::operator_assign_or => AssignmentOperator::Or,
-            _ => unreachable!(),
+    pub fn from_token(token: &Token<'_>) -> Option<Self> {
+        match token.kind() {
+            TokenKind::Symbol(symbol) => Self::from_symbol(symbol),
+            _ => None,
         }
+    }
+
+    pub fn from_symbol(symbol: &Symbol) -> Option<Self> {
+        Some(match symbol {
+            Symbol::Assign => AssignmentOperator::Assign,
+            Symbol::AddAssign => AssignmentOperator::AddAssign,
+            Symbol::SubAssign => AssignmentOperator::SubAssign,
+            Symbol::MulAssign => AssignmentOperator::MulAssign,
+            Symbol::DivAssign => AssignmentOperator::DivAssign,
+            Symbol::NclAssign => AssignmentOperator::NclAssign,
+            _ => return None,
+        })
     }
 }

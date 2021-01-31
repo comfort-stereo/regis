@@ -1,0 +1,99 @@
+fn get_neighbor_count(board, x, y) {
+    let count = 0;
+    let current_y = y - 1;
+    while current_y <= y + 1 {
+        if board[current_y] != null {
+            let current_x = x - 1;
+            while current_x <= x + 1 {
+                if current_y != y or current_x != x {
+                    count += board[current_y][current_x] ?? 0;
+                }
+                current_x += 1;
+            }
+        }
+
+        current_y += 1;
+    }
+
+    return count;
+}
+
+fn step(board) {
+    let y = 0;
+    let next = [];
+
+    while y < @len(board) {
+        let x = 0;
+        let row = [];
+
+        while x < @len(board[y]) {
+            let count = get_neighbor_count(board, x, y);
+            if board[y][x] == 1 {
+                if count < 2 or count > 3 {
+                    row << 0;
+                } else {
+                    row << 1;
+                }
+            } else {
+                if count == 3 {
+                    row << 1;
+                } else {
+                    row << 0;
+                }
+            }
+
+            x += 1;
+        }
+
+        next << row;
+        y += 1;
+    }
+
+    return next;
+}
+
+fn show(board) {
+    let y = 0;
+    while y < @len(board) {
+        let x = 0;
+        while x < @len(board[y]) {
+            if board[y][x] {
+                @print("@");
+            } else {
+                @print("-");
+            }
+
+            @print(" ");
+            x += 1;
+        }
+
+        @println("");
+        y += 1;
+    }
+
+    @println("");
+}
+
+let board = [
+    [1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 1, 0],
+    [1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0, 0, 0, 1, 1, 1],
+    [0, 1, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1],
+    [0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0],
+    [0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0],
+    [1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 1, 0],
+    [1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0, 0, 0, 1, 1, 1],
+    [0, 1, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1],
+    [0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0],
+    [0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0],
+    [1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 1, 0],
+    [1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1],
+    [0, 1, 0, 0, 1, 1, 1, 1, 1, 1, 0, 1, 0, 0, 1, 1, 1, 1, 1, 1],
+    [0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0],
+    [0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0],
+];
+
+loop {
+   show(board);
+   @sleep(0.25);
+   board = step(board);
+}

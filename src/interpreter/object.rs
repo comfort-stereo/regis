@@ -31,7 +31,7 @@ impl Display for Object {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> FormatResult {
         write!(
             formatter,
-            "{{{}}}",
+            "{{ {} }}",
             self.inner
                 .iter()
                 .map(|(key, value)| format!("{}: {}", key.to_string(), value.to_string()))
@@ -85,14 +85,14 @@ impl Object {
         self.inner.reserve(capacity);
     }
 
-    pub fn concat(&self, other: &SharedMutable<Self>) -> SharedMutable<Self> {
+    pub fn concat(&self, other: &Self) -> SharedMutable<Self> {
         let mut result = Self::new();
-        result.reserve(self.len().max(other.borrow().len()));
+        result.reserve(self.len().max(other.len()));
 
         for (key, value) in &self.inner {
             result.set(key.clone(), value.clone());
         }
-        for (key, value) in &other.borrow().inner {
+        for (key, value) in &other.inner {
             result.set(key.clone(), value.clone());
         }
 

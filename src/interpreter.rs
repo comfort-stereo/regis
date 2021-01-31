@@ -14,16 +14,15 @@ pub use value::{Value, ValueType};
 
 use std::collections::HashMap;
 
-use crate::ast::base::AstModule;
-use crate::ast::location::Location;
-use crate::ast::Ast;
 use crate::bytecode::{
     Bytecode, Environment, ExportLocation, Instruction, Module, Procedure, StackLocation,
     VariableVariant,
 };
 use crate::error::{RegisError, RegisErrorVariant};
-use crate::path::CanonicalPath;
+use crate::lexer::Symbol;
+use crate::parser::Parser;
 use crate::shared::{SharedImmutable, SharedMutable};
+use crate::source::{CanonicalPath, Location};
 
 use capture::Capture;
 use function::ProcedureVariant;
@@ -82,8 +81,10 @@ impl Interpreter {
 
     fn add_default_globals(&mut self) {
         self.add_global_function("@print".into(), 1, builtins::print);
+        self.add_global_function("@println".into(), 1, builtins::println);
         self.add_global_function("@len".into(), 1, builtins::len);
         self.add_global_function("@import".into(), 1, builtins::import);
+        self.add_global_function("@sleep".into(), 1, builtins::sleep);
     }
 
     pub fn load_module(&mut self, path: &CanonicalPath) -> Result<(), RegisError> {
@@ -92,18 +93,15 @@ impl Interpreter {
         }
 
         if let Ok(source) = path.read() {
-            let ast = match Ast::<AstModule>::parse_module(&source) {
+            let ast = match Parser::new(&source).parse() {
                 Ok(ast) => ast,
                 Err(error) => {
-                    return Err(RegisError {
-                        location: Some(Location {
-                            path: Some(path.clone()),
-                            ..error.location
-                        }),
-                        variant: RegisErrorVariant::ParseError {
-                            expected: error.expected,
+                    return Err(RegisError::new(
+                        Some(Location::new(Some(path.clone()), *error.span())),
+                        RegisErrorVariant::ParseError {
+                            message: error.to_string(),
                         },
-                    });
+                    ));
                 }
             };
 
@@ -116,12 +114,12 @@ impl Interpreter {
 
             self.run_module(module)
         } else {
-            Err(RegisError {
-                location: None,
-                variant: RegisErrorVariant::ModuleDoesNotExistError {
+            Err(RegisError::new(
+                None,
+                RegisErrorVariant::ModuleDoesNotExistError {
                     path: path.to_string(),
                 },
-            })
+            ))
         }
     }
 
@@ -133,7 +131,7 @@ impl Interpreter {
         // Push a new module frame onto the stack. Store the position we return to to after its
         // evalutated.
         self.frames.push(Frame::new(
-            self.top_position(),
+            self.top(),
             FrameVariant::Module(module.path().clone()),
         ));
 
@@ -149,9 +147,7 @@ impl Interpreter {
         let frame = self.frames.pop().unwrap();
 
         // Discard all local variables allocated for the module.
-        while self.stack.len() > frame.position() {
-            self.pop_value();
-        }
+        self.pop_values_to(frame.position());
 
         Ok(())
     }
@@ -170,42 +166,34 @@ impl Interpreter {
             }
         };
 
-        if argument_count > procedure.environment().parameters().len() {
+        let parameter_count = procedure.environment().parameters().len();
+        if parameter_count > argument_count {
             return Err(RegisError::new(
                 None,
                 RegisErrorVariant::ArgumentCountError {
                     function_name: function.name().map(|name| name.clone_inner()),
-                    required: procedure.environment().parameters().len(),
+                    required: parameter_count,
                     actual: argument_count,
                 },
             ));
         }
 
+        // Arguments should be allocated on the stack already.
+        if argument_count > parameter_count {
+            // If there are extra arguments for the function, pop them off and discard them.
+            self.pop_values(argument_count - parameter_count);
+        }
+
         // Push a new stack frame for the call. Store the position we return to to after its
         // evalutated.
         {
-            let position = self.top_position() - argument_count;
+            let position = self.top() - parameter_count;
             self.frames
                 .push(Frame::new(position, FrameVariant::Call(function.clone())));
         }
 
-        // Arguments should be allocated on the stack already.
-        if argument_count > procedure.environment().parameters().len() {
-            // If there are extra arguments for the function, pop them off and discard them.
-            for _ in procedure.environment().parameters().len()..argument_count {
-                self.pop_value();
-            }
-        }
-
-        // Push all captured variables onto the stack.
-        for capture in function.captures() {
-            self.push_capture(capture.clone());
-        }
-
-        // Allocate space for all other local variables.
-        for _ in function.captures().len()..procedure.environment().variables().len() {
-            self.push_value(Value::Null);
-        }
+        // Initialize all variables.
+        self.push_stack_values(function.init());
 
         // Run the bytecode instructions.
         self.run_instructions(procedure.bytecode())?;
@@ -216,10 +204,7 @@ impl Interpreter {
             // Pop the result of the function call off the top of the stack.
             let result = self.pop_value();
             // Pop and discard all variables allocated for the function call.
-            while self.stack.len() > frame.position() {
-                self.pop_value();
-            }
-
+            self.pop_values_to(frame.position());
             // Push the result back to the top of the stack.
             self.push_value(result);
         }
@@ -299,24 +284,29 @@ impl Interpreter {
                 Instruction::PushGlobal(address) => self.instruction_push_global(*address),
                 Instruction::CreateList(size) => self.instruction_create_list(*size),
                 Instruction::CreateObject(size) => self.instruction_create_object(*size),
-                Instruction::CreateFunction(function) => {
-                    self.instruction_create_function(function.clone())
+                Instruction::CreateFunction(procedure) => {
+                    self.instruction_create_function(procedure.clone())
                 }
                 Instruction::Call(argument_count) => self.instruction_call(*argument_count)?,
-                Instruction::BinaryAdd
-                | Instruction::BinaryDiv
-                | Instruction::BinaryMul
-                | Instruction::BinarySub
-                | Instruction::BinaryGt
-                | Instruction::BinaryLt
-                | Instruction::BinaryGte
-                | Instruction::BinaryLte
-                | Instruction::BinaryEq
-                | Instruction::BinaryNeq => self.instruction_binary_operation(&instruction)?,
+                Instruction::UnaryNeg => self.instruction_unary_neg()?,
+                Instruction::UnaryBitNot => self.instruction_unary_bit_not()?,
+                Instruction::UnaryNot => self.instruction_unary_not(),
+                Instruction::BinaryAdd => self.instruction_binary_add()?,
+                Instruction::BinarySub => self.instruction_binary_sub()?,
+                Instruction::BinaryMul => self.instruction_binary_mul()?,
+                Instruction::BinaryDiv => self.instruction_binary_div()?,
+                Instruction::BinaryShl => self.instruction_binary_shl()?,
+                Instruction::BinaryShr => self.instruction_binary_shr()?,
+                Instruction::BinaryBitAnd => self.instruction_binary_bit_and()?,
+                Instruction::BinaryBitOr => self.instruction_binary_bit_or()?,
+                Instruction::BinaryLt => self.instruction_binary_lt()?,
+                Instruction::BinaryGt => self.instruction_binary_gt()?,
+                Instruction::BinaryLte => self.instruction_binary_lte()?,
+                Instruction::BinaryGte => self.instruction_binary_gte()?,
+                Instruction::BinaryEq => self.instruction_binary_eq(),
+                Instruction::BinaryNeq => self.instruction_binary_neq(),
                 Instruction::GetIndex => self.instruction_get_index()?,
                 Instruction::SetIndex => self.instruction_set_index()?,
-                Instruction::Push => self.instruction_push()?,
-                Instruction::Echo => self.instruction_echo(),
             }
 
             position = next;
@@ -325,7 +315,7 @@ impl Interpreter {
         Ok(())
     }
 
-    fn top_position(&self) -> usize {
+    fn top(&self) -> usize {
         self.stack.len()
     }
 
@@ -369,16 +359,26 @@ impl Interpreter {
         self.push_stack_value(StackValue::Value(value));
     }
 
-    fn push_capture(&mut self, capture: SharedMutable<Capture>) {
-        self.push_stack_value(StackValue::Capture(capture));
-    }
-
     fn push_stack_value(&mut self, value: StackValue) {
         if DEBUG {
             println!("DEBUG:   Push -> {:#?}", value);
         }
 
         self.stack.push(value);
+
+        if DEBUG {
+            println!("DEBUG:   Size -> {:#?}", self.stack.len());
+        }
+    }
+
+    fn push_stack_values(&mut self, values: &[StackValue]) {
+        if DEBUG {
+            for value in values {
+                println!("DEBUG:   Push -> {:#?}", value);
+            }
+        }
+
+        self.stack.extend_from_slice(values);
 
         if DEBUG {
             println!("DEBUG:   Size -> {:#?}", self.stack.len());
@@ -398,6 +398,24 @@ impl Interpreter {
         }
 
         result.get()
+    }
+
+    fn pop_values(&mut self, count: usize) {
+        self.pop_values_to(self.top() - count);
+    }
+
+    fn pop_values_to(&mut self, position: usize) {
+        if DEBUG {
+            for value in self.stack.iter().rev().take(self.top() - position) {
+                println!("DEBUG:   Pop -> {:#?}", value);
+            }
+        }
+
+        self.stack.truncate(position);
+
+        if DEBUG {
+            println!("DEBUG:   Size -> {:#?}", self.stack.len());
+        }
     }
 
     fn top_value(&self) -> Value {
@@ -442,7 +460,7 @@ impl Interpreter {
     }
 
     fn instruction_duplicate_top(&mut self, count: usize) {
-        for i in self.top_position() - count..self.top_position() {
+        for i in self.top() - count..self.top() {
             self.push_value(self.stack[i].get());
         }
     }
@@ -558,21 +576,21 @@ impl Interpreter {
     }
 
     fn instruction_create_function(&mut self, procedure: SharedImmutable<Procedure>) {
-        let mut captures = Vec::new();
-        for variable in procedure.environment().variables() {
-            if let VariableVariant::Capture { location, .. } = &variable.variant {
-                if location.ascend != 0 {
-                    captures.push(
-                        self.capture_value(
-                            self.get_variable_position_from_stack_location(location),
-                        ),
-                    );
-                }
-            }
-        }
+        let init = procedure
+            .environment()
+            .variables()
+            .iter()
+            .map(|variable| match &variable.variant {
+                VariableVariant::Local => StackValue::Value(Value::Null),
+                VariableVariant::Capture { location } => StackValue::Capture(
+                    self.capture_value(self.get_variable_position_from_stack_location(location)),
+                ),
+            })
+            .collect::<Vec<_>>()
+            .into_boxed_slice();
 
         self.push_value(Value::Function(
-            Function::with_captures(ProcedureVariant::Internal(procedure), captures).into(),
+            Function::with_init(ProcedureVariant::Internal(procedure), init).into(),
         ));
     }
 
@@ -585,7 +603,7 @@ impl Interpreter {
                     None,
                     RegisErrorVariant::UndefinedUnaryOperation {
                         operation: format!("{:?}", Instruction::Call(argument_count)),
-                        target_type: target.type_of(),
+                        right_type: target.type_of(),
                     },
                 ));
             }
@@ -594,99 +612,245 @@ impl Interpreter {
         self.run_function(&function, argument_count)
     }
 
-    fn instruction_binary_operation(
+    fn run_errorable_unary_operation<O: Fn(Value) -> Result<Value, RegisError>>(
         &mut self,
-        instruction: &Instruction,
+        operation: O,
+    ) -> Result<(), RegisError> {
+        let right = self.pop_value();
+        operation(right).map(|result| self.push_value(result))
+    }
+
+    fn run_non_errorable_unary_operation<O: Fn(Value) -> Value>(&mut self, operation: O) {
+        let right = self.pop_value();
+        self.push_value(operation(right));
+    }
+
+    fn run_errorable_binary_operation<O: Fn(Value, Value) -> Result<Value, RegisError>>(
+        &mut self,
+        operation: O,
     ) -> Result<(), RegisError> {
         let right = self.pop_value();
         let left = self.pop_value();
+        operation(left, right).map(|result| self.push_value(result))
+    }
 
-        let result = match (&left, &right) {
-            (Value::Int(left), Value::Int(right)) => match instruction {
-                Instruction::BinaryAdd => Some(Value::Int(left + right)),
-                Instruction::BinaryDiv => Some(Value::Float((*left) as f64 / (*right) as f64)),
-                Instruction::BinaryMul => Some(Value::Int(left * right)),
-                Instruction::BinarySub => Some(Value::Int(left - right)),
-                Instruction::BinaryGt => Some(Value::Boolean(left > right)),
-                Instruction::BinaryLt => Some(Value::Boolean(left < right)),
-                Instruction::BinaryGte => Some(Value::Boolean(left >= right)),
-                Instruction::BinaryLte => Some(Value::Boolean(left <= right)),
-                _ => None,
-            },
-            (Value::Float(left), Value::Float(right)) => match instruction {
-                Instruction::BinaryAdd => Some(Value::Float(left + right)),
-                Instruction::BinaryDiv => Some(Value::Float(left / right)),
-                Instruction::BinaryMul => Some(Value::Float(left * right)),
-                Instruction::BinarySub => Some(Value::Float(left - right)),
-                Instruction::BinaryGt => Some(Value::Boolean(left > right)),
-                Instruction::BinaryLt => Some(Value::Boolean(left < right)),
-                Instruction::BinaryGte => Some(Value::Boolean(left >= right)),
-                Instruction::BinaryLte => Some(Value::Boolean(left <= right)),
-                _ => None,
-            },
-            (Value::Int(left), Value::Float(right)) => match instruction {
-                Instruction::BinaryAdd => Some(Value::Float((*left) as f64 + right)),
-                Instruction::BinaryDiv => Some(Value::Float((*left) as f64 / right)),
-                Instruction::BinaryMul => Some(Value::Float((*left) as f64 * right)),
-                Instruction::BinarySub => Some(Value::Float((*left) as f64 - right)),
-                Instruction::BinaryGt => Some(Value::Boolean((*left) as f64 > *right)),
-                Instruction::BinaryLt => Some(Value::Boolean((*(left) as f64) < *right)),
-                Instruction::BinaryGte => Some(Value::Boolean((*left) as f64 >= *right)),
-                Instruction::BinaryLte => Some(Value::Boolean((*left) as f64 <= *right)),
-                _ => None,
-            },
-            (Value::Float(left), Value::Int(right)) => match instruction {
-                Instruction::BinaryAdd => Some(Value::Float(left + (*right) as f64)),
-                Instruction::BinaryDiv => Some(Value::Float(left / (*right) as f64)),
-                Instruction::BinaryMul => Some(Value::Float(left * (*right) as f64)),
-                Instruction::BinarySub => Some(Value::Float(left - (*right) as f64)),
-                Instruction::BinaryGt => Some(Value::Boolean(*left > (*right) as f64)),
-                Instruction::BinaryLt => Some(Value::Boolean(*left < (*right) as f64)),
-                Instruction::BinaryGte => Some(Value::Boolean(*left >= (*right) as f64)),
-                Instruction::BinaryLte => Some(Value::Boolean(*left <= (*right) as f64)),
-                _ => None,
-            },
-            (Value::List(left), Value::List(right)) => match instruction {
-                Instruction::BinaryAdd => Some(Value::List(left.borrow().concat(&right))),
-                _ => None,
-            },
-            (Value::Object(left), Value::Object(right)) => match instruction {
-                Instruction::BinaryAdd => Some(Value::Object(left.borrow().concat(&right))),
-                _ => None,
-            },
-            (Value::String(left), right) => match instruction {
-                Instruction::BinaryAdd => Some(Value::String(
-                    format!("{}{}", *left, right.to_string()).into(),
-                )),
-                _ => None,
-            },
-            (left, Value::String(right)) => match instruction {
-                Instruction::BinaryAdd => Some(Value::String(
-                    format!("{}{}", left.to_string(), *right).into(),
-                )),
-                _ => None,
-            },
-            _ => None,
-        }
-        .or_else(|| match instruction {
-            Instruction::BinaryEq => Some(Value::Boolean(left == right)),
-            Instruction::BinaryNeq => Some(Value::Boolean(left != right)),
-            _ => None,
-        });
+    fn run_non_errorable_binary_operation<O: Fn(Value, Value) -> Value>(&mut self, operation: O) {
+        let right = self.pop_value();
+        let left = self.pop_value();
+        self.push_value(operation(left, right));
+    }
 
-        if let Some(result) = result {
-            self.push_value(result);
-            Ok(())
-        } else {
-            Err(RegisError::new(
-                None,
-                RegisErrorVariant::UndefinedBinaryOperation {
-                    operation: format!("{:?}", instruction),
-                    target_type: left.type_of(),
-                    other_type: right.type_of(),
-                },
-            ))
-        }
+    fn instruction_unary_neg(&mut self) -> Result<(), RegisError> {
+        self.run_errorable_unary_operation(|right| {
+            Ok(match right {
+                Value::Int(int) => Value::Int(-int),
+                Value::Float(float) => Value::Float(-float),
+                _ => return Err(unary_operation_error(Symbol::Sub.text(), right)),
+            })
+        })
+    }
+
+    fn instruction_unary_bit_not(&mut self) -> Result<(), RegisError> {
+        self.run_errorable_unary_operation(|right| {
+            Ok(match right {
+                Value::Int(int) => Value::Int(!int),
+                _ => return Err(unary_operation_error(Symbol::BitNot.text(), right)),
+            })
+        })
+    }
+
+    fn instruction_unary_not(&mut self) {
+        self.run_non_errorable_unary_operation(|right| Value::Boolean(!right.to_boolean()))
+    }
+
+    fn instruction_binary_add(&mut self) -> Result<(), RegisError> {
+        self.run_errorable_binary_operation(|left, right| {
+            Ok(match (left, right) {
+                (Value::Int(left), Value::Int(right)) => Value::Int(left.wrapping_add(right)),
+                (Value::Int(left), Value::Float(right)) => Value::Float(left as f64 + right),
+                (Value::Float(left), Value::Float(right)) => Value::Float(left + right),
+                (Value::Float(left), Value::Int(right)) => Value::Float(left + right as f64),
+                (Value::List(left), Value::List(right)) => {
+                    Value::List(left.borrow().concat(&right.borrow()))
+                }
+                (Value::Object(left), Value::Object(right)) => {
+                    Value::Object(left.borrow().concat(&right.borrow()))
+                }
+                (Value::String(left), right) => {
+                    Value::String(format!("{}{}", left, right.to_string()).into())
+                }
+                (left, Value::String(right)) => {
+                    Value::String(format!("{}{}", left.to_string(), right).into())
+                }
+                (left, right) => {
+                    return Err(binary_operation_error(Symbol::Add.text(), left, right))
+                }
+            })
+        })
+    }
+
+    fn instruction_binary_sub(&mut self) -> Result<(), RegisError> {
+        self.run_errorable_binary_operation(|left, right| {
+            Ok(match (left, right) {
+                (Value::Int(left), Value::Int(right)) => Value::Int(left.wrapping_sub(right)),
+                (Value::Int(left), Value::Float(right)) => Value::Float(left as f64 - right),
+                (Value::Float(left), Value::Float(right)) => Value::Float(left - right),
+                (Value::Float(left), Value::Int(right)) => Value::Float(left - right as f64),
+                (left, right) => {
+                    return Err(binary_operation_error(Symbol::Sub.text(), left, right))
+                }
+            })
+        })
+    }
+
+    fn instruction_binary_mul(&mut self) -> Result<(), RegisError> {
+        self.run_errorable_binary_operation(|left, right| {
+            Ok(match (left, right) {
+                (Value::Int(left), Value::Int(right)) => Value::Int(left.wrapping_mul(right)),
+                (Value::Int(left), Value::Float(right)) => Value::Float(left as f64 * right),
+                (Value::Float(left), Value::Float(right)) => Value::Float(left * right),
+                (Value::Float(left), Value::Int(right)) => Value::Float(left * right as f64),
+                (left, right) => {
+                    return Err(binary_operation_error(Symbol::Mul.text(), left, right))
+                }
+            })
+        })
+    }
+
+    fn instruction_binary_div(&mut self) -> Result<(), RegisError> {
+        self.run_errorable_binary_operation(|left, right| {
+            Ok(match (left, right) {
+                (Value::Int(left), Value::Int(right)) => Value::Int(left.wrapping_div(right)),
+                (Value::Int(left), Value::Float(right)) => Value::Float(left as f64 / right),
+                (Value::Float(left), Value::Float(right)) => Value::Float(left / right),
+                (Value::Float(left), Value::Int(right)) => Value::Float(left / right as f64),
+                (left, right) => {
+                    return Err(binary_operation_error(Symbol::Div.text(), left, right))
+                }
+            })
+        })
+    }
+
+    fn instruction_binary_shl(&mut self) -> Result<(), RegisError> {
+        self.run_errorable_binary_operation(|left, right| {
+            Ok(match (left, right) {
+                (Value::Int(left), Value::Int(right)) => {
+                    // TODO: Check to make right hand side is correct.
+                    Value::Int(left.wrapping_shl(right as u32))
+                }
+                (Value::List(left), right) => {
+                    left.borrow_mut().push(right);
+                    Value::List(left)
+                }
+                (Value::Object(left), right) => {
+                    left.borrow_mut().set(right, Value::Null);
+                    Value::Object(left)
+                }
+                (left, right) => {
+                    return Err(binary_operation_error(Symbol::Shl.text(), left, right))
+                }
+            })
+        })
+    }
+
+    fn instruction_binary_shr(&mut self) -> Result<(), RegisError> {
+        self.run_errorable_binary_operation(|left, right| {
+            Ok(match (left, right) {
+                (Value::Int(left), Value::Int(right)) => {
+                    // TODO: Check to make right hand side is correct.
+                    Value::Int(left.wrapping_shr(right as u32))
+                }
+                (left, right) => {
+                    return Err(binary_operation_error(Symbol::Shr.text(), left, right))
+                }
+            })
+        })
+    }
+
+    fn instruction_binary_bit_and(&mut self) -> Result<(), RegisError> {
+        self.run_errorable_binary_operation(|left, right| {
+            Ok(match (left, right) {
+                (Value::Int(left), Value::Int(right)) => Value::Int(left & right),
+                (left, right) => {
+                    return Err(binary_operation_error(Symbol::BitAnd.text(), left, right))
+                }
+            })
+        })
+    }
+
+    fn instruction_binary_bit_or(&mut self) -> Result<(), RegisError> {
+        self.run_errorable_binary_operation(|left, right| {
+            Ok(match (left, right) {
+                (Value::Int(left), Value::Int(right)) => Value::Int(left | right),
+                (left, right) => {
+                    return Err(binary_operation_error(Symbol::BitOr.text(), left, right))
+                }
+            })
+        })
+    }
+
+    fn instruction_binary_lt(&mut self) -> Result<(), RegisError> {
+        self.run_errorable_binary_operation(|left, right| {
+            Ok(match (left, right) {
+                (Value::Int(left), Value::Int(right)) => Value::Boolean(left < right),
+                (Value::Int(left), Value::Float(right)) => Value::Boolean((left as f64) < right),
+                (Value::Float(left), Value::Float(right)) => Value::Boolean(left < right),
+                (Value::Float(left), Value::Int(right)) => Value::Boolean(left < (right as f64)),
+                (left, right) => {
+                    return Err(binary_operation_error(Symbol::Lt.text(), left, right))
+                }
+            })
+        })
+    }
+
+    fn instruction_binary_gt(&mut self) -> Result<(), RegisError> {
+        self.run_errorable_binary_operation(|left, right| {
+            Ok(match (left, right) {
+                (Value::Int(left), Value::Int(right)) => Value::Boolean(left > right),
+                (Value::Int(left), Value::Float(right)) => Value::Boolean((left as f64) > right),
+                (Value::Float(left), Value::Float(right)) => Value::Boolean(left > right),
+                (Value::Float(left), Value::Int(right)) => Value::Boolean(left > (right as f64)),
+                (left, right) => {
+                    return Err(binary_operation_error(Symbol::Gt.text(), left, right))
+                }
+            })
+        })
+    }
+
+    fn instruction_binary_lte(&mut self) -> Result<(), RegisError> {
+        self.run_errorable_binary_operation(|left, right| {
+            Ok(match (left, right) {
+                (Value::Int(left), Value::Int(right)) => Value::Boolean(left <= right),
+                (Value::Int(left), Value::Float(right)) => Value::Boolean((left as f64) <= right),
+                (Value::Float(left), Value::Float(right)) => Value::Boolean(left <= right),
+                (Value::Float(left), Value::Int(right)) => Value::Boolean(left <= (right as f64)),
+                (left, right) => {
+                    return Err(binary_operation_error(Symbol::Lte.text(), left, right))
+                }
+            })
+        })
+    }
+
+    fn instruction_binary_gte(&mut self) -> Result<(), RegisError> {
+        self.run_errorable_binary_operation(|left, right| {
+            Ok(match (left, right) {
+                (Value::Int(left), Value::Int(right)) => Value::Boolean(left >= right),
+                (Value::Int(left), Value::Float(right)) => Value::Boolean((left as f64) >= right),
+                (Value::Float(left), Value::Float(right)) => Value::Boolean(left >= right),
+                (Value::Float(left), Value::Int(right)) => Value::Boolean(left >= (right as f64)),
+                (left, right) => {
+                    return Err(binary_operation_error(Symbol::Gte.text(), left, right))
+                }
+            })
+        })
+    }
+
+    fn instruction_binary_eq(&mut self) {
+        self.run_non_errorable_binary_operation(|left, right| Value::Boolean(left == right))
+    }
+
+    fn instruction_binary_neq(&mut self) {
+        self.run_non_errorable_binary_operation(|left, right| Value::Boolean(left != right))
     }
 
     fn instruction_get_index(&mut self) -> Result<(), RegisError> {
@@ -729,41 +893,10 @@ impl Interpreter {
 
         Ok(())
     }
-
-    fn instruction_push(&mut self) -> Result<(), RegisError> {
-        let value = self.pop_value();
-        let target = self.pop_value();
-
-        match target {
-            Value::List(list) => {
-                list.borrow_mut().push(value);
-            }
-            Value::Object(object) => {
-                object.borrow_mut().set(value, Value::Null);
-            }
-            _ => {
-                return Err(RegisError::new(
-                    None,
-                    RegisErrorVariant::TypeError {
-                        message: format!(
-                            "Operator '[]=' is not defined for type {}.",
-                            target.type_of()
-                        ),
-                    },
-                ));
-            }
-        }
-
-        Ok(())
-    }
-
-    fn instruction_echo(&mut self) {
-        println!("{}", self.pop_value());
-    }
 }
 
 #[derive(Debug, Clone)]
-enum StackValue {
+pub enum StackValue {
     Value(Value),
     Capture(SharedMutable<Capture>),
 }
@@ -824,4 +957,25 @@ impl LoadedModule {
     pub fn exports(&self) -> &SharedMutable<Object> {
         &self.exports
     }
+}
+
+fn unary_operation_error(operator: &'static str, right: Value) -> RegisError {
+    RegisError::new(
+        None,
+        RegisErrorVariant::UndefinedUnaryOperation {
+            operation: operator.into(),
+            right_type: right.type_of(),
+        },
+    )
+}
+
+fn binary_operation_error(operator: &'static str, left: Value, right: Value) -> RegisError {
+    RegisError::new(
+        None,
+        RegisErrorVariant::UndefinedBinaryOperation {
+            operation: operator.into(),
+            left_type: left.type_of(),
+            right_type: right.type_of(),
+        },
+    )
 }

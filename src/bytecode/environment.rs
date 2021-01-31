@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use indexmap::IndexSet;
 
-use crate::path::CanonicalPath;
 use crate::shared::SharedImmutable;
+use crate::source::CanonicalPath;
 
 use super::variable::GlobalLocation;
 use super::{
