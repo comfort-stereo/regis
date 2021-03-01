@@ -10,14 +10,13 @@ pub use self::error::*;
 pub use self::result::*;
 
 use std::collections::VecDeque;
-use std::iter::Filter;
 
 use crate::ast::{Chunk, NodeInfo};
 use crate::lexer::{Keyword, Lexer, Symbol, Token, TokenKind};
 use crate::source::Span;
 
 pub struct Parser<'source> {
-    tokens: Filter<Lexer<'source>, fn(&Token<'source>) -> bool>,
+    tokens: Lexer<'source>,
     index: usize,
     buffer: VecDeque<Token<'source>>,
     buffer_index: usize,
@@ -27,9 +26,7 @@ pub struct Parser<'source> {
 impl<'source> Parser<'source> {
     pub fn new(source: &'source str) -> Self {
         Self {
-            tokens: Lexer::new(source).filter(|current| {
-                !matches!(current.kind(), TokenKind::Comment | TokenKind::Whitespace)
-            }),
+            tokens: Lexer::new(source),
             index: 0,
             buffer: VecDeque::new(),
             buffer_index: 0,
@@ -45,7 +42,15 @@ impl<'source> Parser<'source> {
         self.index
     }
 
-    fn start_node(&self) -> usize {
+    fn is_ignored_token_kind(kind: &TokenKind) -> bool {
+        matches!(kind, TokenKind::Comment | TokenKind::Whitespace)
+    }
+
+    fn start_node(&mut self) -> usize {
+        if let Some(next) = self.peek() {
+            self.index = next.span().start();
+        }
+
         self.index()
     }
 
@@ -54,25 +59,34 @@ impl<'source> Parser<'source> {
     }
 
     fn next(&mut self) -> Option<Token<'source>> {
-        let next = if self.attempt_depth == 0 {
-            self.buffer.pop_front().or_else(|| self.tokens.next())
-        } else if self.buffer_index < self.buffer.len() {
-            let next = self.buffer[self.buffer_index];
-            self.buffer_index += 1;
-            Some(next)
-        } else if let Some(next) = self.tokens.next() {
-            self.buffer.push_back(next);
-            self.buffer_index += 1;
-            Some(next)
-        } else {
-            None
-        };
+        loop {
+            let next = if self.attempt_depth == 0 {
+                self.buffer.pop_front().or_else(|| self.tokens.next())
+            } else if self.buffer_index < self.buffer.len() {
+                let next = self.buffer[self.buffer_index];
+                self.buffer_index += 1;
+                Some(next)
+            } else if let Some(next) = self.tokens.next() {
+                self.buffer.push_back(next);
+                self.buffer_index += 1;
+                Some(next)
+            } else {
+                None
+            };
 
-        if let Some(next) = next {
-            self.index = next.end();
+            if let Some(next) = next {
+                self.index = match self.peek() {
+                    Some(after) => after.span().start(),
+                    None => next.span().end(),
+                };
+
+                if Self::is_ignored_token_kind(next.kind()) {
+                    continue;
+                }
+            }
+
+            return next;
         }
-
-        next
     }
 
     fn attempt<R, B: Fn(&mut Self) -> Result<R, ParseError>>(
@@ -110,8 +124,12 @@ impl<'source> Parser<'source> {
 
     fn lookahead(&mut self, by: usize) -> Option<&Token<'source>> {
         while self.buffer.len() <= by + self.buffer_index {
-            if let Some(current) = self.tokens.next() {
-                self.buffer.push_back(current);
+            if let Some(token) = self.tokens.next() {
+                if Self::is_ignored_token_kind(token.kind()) {
+                    continue;
+                }
+
+                self.buffer.push_back(token);
             } else {
                 return None;
             }

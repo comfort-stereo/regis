@@ -6,7 +6,9 @@ mod stmt;
 
 use std::collections::{BTreeMap, HashSet};
 
+use crate::ast::NodeInfo;
 use crate::shared::SharedImmutable;
+use crate::source::Span;
 
 use super::environment::Environment;
 use super::instruction::Instruction;
@@ -18,6 +20,7 @@ use marker::Marker;
 #[derive(Debug)]
 pub struct Builder<'environment> {
     instructions: Vec<Instruction>,
+    spans: Vec<Span>,
     markers: BTreeMap<usize, HashSet<Marker>>,
     environment: &'environment mut Environment,
 }
@@ -26,6 +29,7 @@ impl<'environment> Builder<'environment> {
     pub fn new(environment: &'environment mut Environment) -> Self {
         Self {
             instructions: Vec::new(),
+            spans: Vec::new(),
             markers: BTreeMap::new(),
             environment,
         }
@@ -39,17 +43,27 @@ impl<'environment> Builder<'environment> {
         self.instructions.len()
     }
 
-    pub fn set(&mut self, line: usize, instruction: Instruction) {
-        self.instructions[line] = instruction;
+    pub fn set(&mut self, line: usize, instruction: Instruction, origin: &NodeInfo) {
+        self.set_with_span(line, instruction, *origin.span());
     }
 
-    pub fn add(&mut self, instruction: Instruction) {
-        self.instructions.push(instruction);
+    pub fn add(&mut self, instruction: Instruction, origin: &NodeInfo) {
+        self.add_with_span(instruction, *origin.span());
     }
 
-    pub fn blank(&mut self) -> usize {
-        self.add(Instruction::Blank);
+    pub fn blank(&mut self, origin: &NodeInfo) -> usize {
+        self.add(Instruction::Blank, origin);
         self.last()
+    }
+
+    pub fn set_with_span(&mut self, line: usize, instruction: Instruction, span: Span) {
+        self.instructions[line] = instruction;
+        self.spans[line] = span;
+    }
+
+    pub fn add_with_span(&mut self, instruction: Instruction, span: Span) {
+        self.instructions.push(instruction);
+        self.spans.push(span);
     }
 
     pub fn mark(&mut self, line: usize, marker: Marker) {
@@ -66,15 +80,28 @@ impl<'environment> Builder<'environment> {
             .unwrap_or(false)
     }
 
-    pub fn emit_variable_assign_instruction(&mut self, name: &SharedImmutable<String>) {
-        self.emit_variable_instruction(name, true);
+    pub fn emit_variable_assign_instruction(
+        &mut self,
+        name: &SharedImmutable<String>,
+        origin: &NodeInfo,
+    ) {
+        self.emit_variable_instruction(name, true, origin);
     }
 
-    pub fn emit_variable_push_instruction(&mut self, name: &SharedImmutable<String>) {
-        self.emit_variable_instruction(name, false);
+    pub fn emit_variable_push_instruction(
+        &mut self,
+        name: &SharedImmutable<String>,
+        origin: &NodeInfo,
+    ) {
+        self.emit_variable_instruction(name, false, origin);
     }
 
-    fn emit_variable_instruction(&mut self, name: &SharedImmutable<String>, assign: bool) {
+    fn emit_variable_instruction(
+        &mut self,
+        name: &SharedImmutable<String>,
+        assign: bool,
+        origin: &NodeInfo,
+    ) {
         let location = self
             .environment
             .get_variable_location(name)
@@ -116,12 +143,12 @@ impl<'environment> Builder<'environment> {
             }
         };
 
-        self.add(instruction);
+        self.add(instruction, &origin);
     }
 
     pub fn build(mut self) -> Bytecode {
         self.finalize();
-        Bytecode::new(self.instructions)
+        Bytecode::new(self.instructions, self.spans)
     }
 
     fn finalize(&mut self) {
@@ -144,7 +171,7 @@ impl<'environment> Builder<'environment> {
                 depth += 1;
             } else if self.has_marker(current, Marker::LoopEnd) {
                 if depth == 0 {
-                    self.set(line, Instruction::Jump(current));
+                    self.set_with_span(line, Instruction::Jump(current), self.spans[line]);
                     return;
                 }
 
@@ -161,7 +188,7 @@ impl<'environment> Builder<'environment> {
                 depth += 1;
             } else if self.has_marker(current, Marker::LoopStart) {
                 if depth == 0 {
-                    self.set(line, Instruction::Jump(current));
+                    self.set_with_span(line, Instruction::Jump(current), self.spans[line]);
                     break;
                 }
 

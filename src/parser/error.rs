@@ -40,7 +40,7 @@ impl ParseError {
     pub fn at_token(kind: ParseErrorKind, token: &Token<'_>) -> Self {
         ParseError {
             kind,
-            span: token.span(),
+            span: *token.span(),
         }
     }
 

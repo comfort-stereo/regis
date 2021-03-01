@@ -22,15 +22,17 @@ impl<'environment> Builder<'environment> {
         self.environment.pop_scope();
     }
 
-    pub fn emit_function_block(&mut self, Block { stmts, .. }: &Block) {
+    pub fn emit_function_block(&mut self, Block { info, stmts }: &Block) {
         let stmts = self.hoist(&stmts);
         for stmt in &stmts {
             self.emit_stmt(stmt);
         }
 
-        if !stmts.iter().any(|stmt| matches!(stmt, Stmt::Return(..))) {
-            self.add(Instruction::PushNull);
+        if stmts.iter().any(|stmt| matches!(stmt, Stmt::Return(..))) {
+            return;
         }
+
+        self.add(Instruction::PushNull, info);
     }
 
     fn hoist<'b>(&mut self, stmts: &'b [Stmt]) -> Vec<&'b Stmt> {

@@ -1,36 +1,24 @@
+use std::error::Error;
+use std::fmt::{Display, Formatter, Result as FormatResult};
 use std::str::from_utf8;
 
 use crate::interpreter::ValueType;
 use crate::source::{Location, Span};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RegisError {
     location: Option<Location>,
     variant: RegisErrorVariant,
 }
 
-impl RegisError {
-    pub fn new(location: Option<Location>, variant: RegisErrorVariant) -> Self {
-        Self { location, variant }
-    }
-
-    pub fn location(&self) -> &Option<Location> {
-        &self.location
-    }
-
-    pub fn variant(&self) -> &RegisErrorVariant {
-        &self.variant
-    }
-}
-
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum RegisErrorVariant {
     UndefinedUnaryOperation {
-        operation: String,
+        operator: String,
         right_type: ValueType,
     },
     UndefinedBinaryOperation {
-        operation: String,
+        operator: String,
         left_type: ValueType,
         right_type: ValueType,
     },
@@ -53,13 +41,19 @@ pub enum RegisErrorVariant {
     },
 }
 
-#[derive(Debug)]
-struct RegisErrorMessageDisplay {
-    label: String,
-    message: String,
-}
-
 impl RegisError {
+    pub fn new(location: Option<Location>, variant: RegisErrorVariant) -> Self {
+        Self { location, variant }
+    }
+
+    pub fn location(&self) -> &Option<Location> {
+        &self.location
+    }
+
+    pub fn variant(&self) -> &RegisErrorVariant {
+        &self.variant
+    }
+
     pub fn show(&self, source: Option<&str>) -> String {
         let message = self.display_message();
         let mut output = Vec::new();
@@ -88,22 +82,22 @@ impl RegisError {
     fn display_message(&self) -> String {
         match &self.variant {
             RegisErrorVariant::UndefinedBinaryOperation {
-                operation,
-                left_type: target_type,
-                right_type: other_type,
+                operator,
+                left_type,
+                right_type,
             } => {
                 format!(
-                    "Operation '{}' is not defined for types '{}' and '{}'.",
-                    operation, target_type, other_type,
+                    "Operator '{}' is not defined for types '{}' and '{}'.",
+                    operator, left_type, right_type,
                 )
             }
             RegisErrorVariant::UndefinedUnaryOperation {
-                operation,
-                right_type: target_type,
+                operator,
+                right_type,
             } => {
                 format!(
-                    "Operation '{}' is not defined for type '{}'.",
-                    operation, target_type
+                    "Operator '{}' is not defined for type '{}'.",
+                    operator, right_type
                 )
             }
             RegisErrorVariant::IndexOutOfBoundsError { message } => message.into(),
@@ -126,13 +120,20 @@ impl RegisError {
                 "Imported module at path '{}' does not exist.",
                 path,
             ),
-            RegisErrorVariant::ParseError { message } => format!( "Invalid syntax. {}", message),
+            RegisErrorVariant::ParseError { message } => format!("Invalid syntax. {}", message),
         }
     }
 
     fn span_info(span: &Span, source: &str) -> (usize, usize, String) {
         fn is_newline(string: &str, index: usize) -> bool {
-            string.is_char_boundary(index) && string.as_bytes()[index] as char == '\n'
+            if string.is_char_boundary(index) {
+                string
+                    .as_bytes()
+                    .get(index)
+                    .map_or(false, |byte| *byte as char == '\n')
+            } else {
+                false
+            }
         }
 
         let bytes = source.as_bytes();
@@ -148,7 +149,7 @@ impl RegisError {
                 end += 1;
             }
 
-            from_utf8(&bytes[start..end]).unwrap()
+            from_utf8(&bytes[start..end]).unwrap().trim()
         };
 
         let (line, column) = {
@@ -156,7 +157,7 @@ impl RegisError {
             let mut column = 1;
 
             for (i, character) in source.char_indices() {
-                if i == span.start() {
+                if i >= span.start() {
                     break;
                 }
 
@@ -172,5 +173,17 @@ impl RegisError {
         };
 
         (line, column, code.into())
+    }
+}
+
+impl Display for RegisError {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> FormatResult {
+        write!(formatter, "{}", self.show(None))
+    }
+}
+
+impl Error for RegisError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        None
     }
 }

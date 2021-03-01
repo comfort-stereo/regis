@@ -20,13 +20,12 @@ impl Module {
         }
     }
 
-    pub fn build(path: CanonicalPath, chunk: &Chunk, environment: Environment) -> Self {
-        let mut environment_mut = environment;
-        let mut builder = Builder::new(&mut environment_mut);
+    pub fn build(path: CanonicalPath, chunk: &Chunk, mut environment: Environment) -> Self {
+        let mut builder = Builder::new(&mut environment);
         builder.emit_chunk(chunk);
         let bytecode = builder.build();
 
-        Self::new(path, bytecode, environment_mut)
+        Self::new(path, bytecode, environment)
     }
 
     pub fn path(&self) -> &CanonicalPath {

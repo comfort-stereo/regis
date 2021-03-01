@@ -23,12 +23,12 @@ impl<'source> Parser<'source> {
                 // Check to see if the token is a unary operator.
                 (Some(unary), None) => Some(Segment::UnaryOperator(UnaryOperatorSegment {
                     operator: unary,
-                    span: token.span(),
+                    span: *token.span(),
                 })),
                 // Check to see if the token is a binary operator.
                 (None, Some(binary)) => Some(Segment::BinaryOperator(BinaryOperatorSegment {
                     operator: binary,
-                    span: token.span(),
+                    span: *token.span(),
                 })),
                 // If the token is an operator that could be interpreted as either unary or binary,
                 // check to see if the previous segment is an expression. If the previous segment is
@@ -37,12 +37,12 @@ impl<'source> Parser<'source> {
                     if matches!(segments.last(), Some(Segment::Expr(..))) {
                         Some(Segment::BinaryOperator(BinaryOperatorSegment {
                             operator: binary,
-                            span: token.span(),
+                            span: *token.span(),
                         }))
                     } else {
                         Some(Segment::UnaryOperator(UnaryOperatorSegment {
                             operator: unary,
-                            span: token.span(),
+                            span: *token.span(),
                         }))
                     }
                 }

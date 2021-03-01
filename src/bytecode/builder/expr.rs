@@ -26,46 +26,46 @@ impl<'environment> Builder<'environment> {
         }
     }
 
-    pub fn emit_null_expr(&mut self, _: &NullExpr) {
-        self.add(Instruction::PushNull);
+    pub fn emit_null_expr(&mut self, NullExpr { info }: &NullExpr) {
+        self.add(Instruction::PushNull, info);
     }
 
-    pub fn emit_boolean_expr(&mut self, BooleanExpr { value, .. }: &BooleanExpr) {
-        self.add(Instruction::PushBoolean(*value));
+    pub fn emit_boolean_expr(&mut self, BooleanExpr { info, value }: &BooleanExpr) {
+        self.add(Instruction::PushBoolean(*value), info);
     }
 
-    pub fn emit_int_expr(&mut self, IntExpr { value, .. }: &IntExpr) {
-        self.add(Instruction::PushInt(*value));
+    pub fn emit_int_expr(&mut self, IntExpr { info, value }: &IntExpr) {
+        self.add(Instruction::PushInt(*value), info);
     }
 
-    pub fn emit_float_expr(&mut self, FloatExpr { value, .. }: &FloatExpr) {
-        self.add(Instruction::PushFloat(*value));
+    pub fn emit_float_expr(&mut self, FloatExpr { info, value }: &FloatExpr) {
+        self.add(Instruction::PushFloat(*value), info);
     }
 
-    pub fn emit_string_expr(&mut self, StringExpr { value, .. }: &StringExpr) {
-        self.add(Instruction::PushString(value.clone()));
+    pub fn emit_string_expr(&mut self, StringExpr { info, value }: &StringExpr) {
+        self.add(Instruction::PushString(value.clone()), info);
     }
 
-    pub fn emit_variable_expr(&mut self, VariableExpr { name, .. }: &VariableExpr) {
-        self.emit_variable_push_instruction(&name.text);
+    pub fn emit_variable_expr(&mut self, VariableExpr { info, name }: &VariableExpr) {
+        self.emit_variable_push_instruction(&name.text, info);
     }
 
-    pub fn emit_list_expr(&mut self, ListExpr { values, .. }: &ListExpr) {
+    pub fn emit_list_expr(&mut self, ListExpr { info, values }: &ListExpr) {
         for value in values.iter().rev() {
             self.emit_expr(value);
         }
 
-        self.add(Instruction::CreateList(values.len()));
+        self.add(Instruction::CreateList(values.len()), info);
     }
 
-    pub fn emit_object_expr(&mut self, ObjectExpr { pairs, .. }: &ObjectExpr) {
+    pub fn emit_object_expr(&mut self, ObjectExpr { info, pairs }: &ObjectExpr) {
         for ObjectExprPair { key, value, .. } in pairs.iter().rev() {
             match key {
-                ObjectExprKeyVariant::Identifier(Ident { text, .. }) => {
-                    self.add(Instruction::PushString(text.clone()))
+                ObjectExprKeyVariant::Identifier(Ident { info, text }) => {
+                    self.add(Instruction::PushString(text.clone()), info)
                 }
-                ObjectExprKeyVariant::String(StringExpr { value, .. }) => {
-                    self.add(Instruction::PushString(value.clone()))
+                ObjectExprKeyVariant::String(StringExpr { info, value }) => {
+                    self.add(Instruction::PushString(value.clone()), info)
                 }
                 ObjectExprKeyVariant::Expr(ObjectExprKeyExpr { value, .. }) => {
                     self.emit_expr(value)
@@ -75,16 +75,16 @@ impl<'environment> Builder<'environment> {
             self.emit_expr(value);
         }
 
-        self.add(Instruction::CreateObject(pairs.len()));
+        self.add(Instruction::CreateObject(pairs.len()), info);
     }
 
     pub fn emit_function_expr(
         &mut self,
         FunctionExpr {
+            info,
             name,
             parameters,
             body,
-            ..
         }: &FunctionExpr,
     ) {
         let name = match name {
@@ -117,34 +117,45 @@ impl<'environment> Builder<'environment> {
 
         let bytecode = builder.build();
         let procedure = Procedure::new(name, bytecode, environment);
-        self.add(Instruction::CreateFunction(procedure.into()));
+        self.add(Instruction::CreateFunction(procedure.into()), info);
     }
 
     pub fn emit_wrapped_expr(&mut self, WrappedExpr { value, .. }: &WrappedExpr) {
         self.emit_expr(value)
     }
 
-    pub fn emit_index_expr(&mut self, IndexExpr { target, index, .. }: &IndexExpr) {
+    pub fn emit_index_expr(
+        &mut self,
+        IndexExpr {
+            info,
+            target,
+            index,
+        }: &IndexExpr,
+    ) {
         self.emit_expr(target);
         self.emit_expr(index);
-        self.add(Instruction::GetIndex);
+        self.add(Instruction::GetIndex, info);
     }
 
     pub fn emit_dot_expr(
         &mut self,
         DotExpr {
-            target, property, ..
+            info,
+            target,
+            property,
         }: &DotExpr,
     ) {
         self.emit_expr(target);
-        self.add(Instruction::PushString(property.text.clone()));
-        self.add(Instruction::GetIndex);
+        self.add(Instruction::PushString(property.text.clone()), info);
+        self.add(Instruction::GetIndex, info);
     }
 
     pub fn emit_call_expr(
         &mut self,
         CallExpr {
-            target, arguments, ..
+            info,
+            target,
+            arguments,
         }: &CallExpr,
     ) {
         for argument in arguments.iter() {
@@ -152,30 +163,35 @@ impl<'environment> Builder<'environment> {
         }
 
         self.emit_expr(target);
-        self.add(Instruction::Call(arguments.len()));
+        self.add(Instruction::Call(arguments.len()), info);
     }
 
     pub fn emit_unary_operation_expr(
         &mut self,
         UnaryOperationExpr {
-            operator, right, ..
+            info,
+            operator,
+            right,
         }: &UnaryOperationExpr,
     ) {
         self.emit_expr(right);
-        self.add(match operator {
-            UnaryOperator::Neg => Instruction::UnaryNeg,
-            UnaryOperator::BitNot => Instruction::UnaryBitNot,
-            UnaryOperator::Not => Instruction::UnaryNot,
-        });
+        self.add(
+            match operator {
+                UnaryOperator::Neg => Instruction::UnaryNeg,
+                UnaryOperator::BitNot => Instruction::UnaryBitNot,
+                UnaryOperator::Not => Instruction::UnaryNot,
+            },
+            info,
+        );
     }
 
     pub fn emit_binary_operation_expr(
         &mut self,
         BinaryOperationExpr {
+            info,
             left,
             operator,
             right,
-            ..
         }: &BinaryOperationExpr,
     ) {
         if let Some(eager) = match operator {
@@ -197,16 +213,16 @@ impl<'environment> Builder<'environment> {
         } {
             self.emit_expr(left);
             self.emit_expr(right);
-            self.add(eager);
+            self.add(eager, info);
 
             return;
         }
 
         self.emit_expr(left);
         match operator {
-            BinaryOperator::Ncl => self.emit_ncl_operation(right),
-            BinaryOperator::And => self.emit_and_operation(right),
-            BinaryOperator::Or => self.emit_or_operation(right),
+            BinaryOperator::Ncl => self.emit_ncl_operation(right, info),
+            BinaryOperator::And => self.emit_and_operation(right, info),
+            BinaryOperator::Or => self.emit_or_operation(right, info),
             _ => unreachable!(),
         };
     }

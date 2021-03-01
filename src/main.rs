@@ -16,7 +16,12 @@ fn main() {
 
     let mut interpreter = Interpreter::new(path.clone());
     if let Err(error) = interpreter.load_module(&path) {
-        if let Ok(source) = path.read() {
+        if let Some(source) = error
+            .location()
+            .as_ref()
+            .and_then(|location| location.path().as_ref())
+            .and_then(|path| path.read().ok())
+        {
             println!("{}", error.show(Some(&source)));
         } else {
             println!("{}", error.show(None));

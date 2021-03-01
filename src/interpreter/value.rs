@@ -116,7 +116,7 @@ impl Value {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ValueType {
     Null,
     Boolean,

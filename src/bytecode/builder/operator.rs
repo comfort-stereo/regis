@@ -1,55 +1,68 @@
-use crate::ast::AssignmentOperator;
 use crate::ast::Expr;
+use crate::ast::{AssignmentOperator, NodeInfo};
 
 use super::super::instruction::Instruction;
 use super::Builder;
 
 impl<'environment> Builder<'environment> {
-    pub fn emit_ncl_operation(&mut self, value: &Expr) {
-        self.add(Instruction::Duplicate);
-        self.add(Instruction::IsNull);
-        let jump_end_if_not_null = self.blank();
-        self.add(Instruction::Pop);
+    pub fn emit_ncl_operation(&mut self, value: &Expr, origin: &NodeInfo) {
+        self.add(Instruction::Duplicate, origin);
+        self.add(Instruction::IsNull, origin);
+        let jump_end_if_not_null = self.blank(origin);
+        self.add(Instruction::Pop, origin);
         self.emit_expr(value);
-        self.set(jump_end_if_not_null, Instruction::JumpUnless(self.end()));
+        self.set(
+            jump_end_if_not_null,
+            Instruction::JumpUnless(self.end()),
+            origin,
+        );
     }
 
-    pub fn emit_and_operation(&mut self, value: &Expr) {
-        self.add(Instruction::Duplicate);
-        let jump_end_if_false = self.blank();
-        self.add(Instruction::Pop);
+    pub fn emit_and_operation(&mut self, value: &Expr, origin: &NodeInfo) {
+        self.add(Instruction::Duplicate, origin);
+        let jump_end_if_false = self.blank(origin);
+        self.add(Instruction::Pop, origin);
         self.emit_expr(value);
-        self.set(jump_end_if_false, Instruction::JumpUnless(self.end()));
+        self.set(
+            jump_end_if_false,
+            Instruction::JumpUnless(self.end()),
+            origin,
+        );
     }
 
-    pub fn emit_or_operation(&mut self, value: &Expr) {
-        self.add(Instruction::Duplicate);
-        let jump_end_if_true = self.blank();
-        self.add(Instruction::Pop);
+    pub fn emit_or_operation(&mut self, value: &Expr, origin: &NodeInfo) {
+        self.add(Instruction::Duplicate, origin);
+        let jump_end_if_true = self.blank(origin);
+        self.add(Instruction::Pop, origin);
         self.emit_expr(value);
-        self.set(jump_end_if_true, Instruction::JumpIf(self.end()));
+        self.set(jump_end_if_true, Instruction::JumpIf(self.end()), origin);
     }
 
-    pub fn emit_set_index_value(&mut self, operator: &AssignmentOperator, value: &Expr) {
+    pub fn emit_set_index_value(
+        &mut self,
+        operator: &AssignmentOperator,
+        value: &Expr,
+        origin: &NodeInfo,
+    ) {
         match operator {
             AssignmentOperator::Assign => self.emit_expr(value),
             AssignmentOperator::MulAssign => {
                 self.emit_expr(value);
-                self.add(Instruction::BinaryMul);
+                self.add(Instruction::BinaryMul, origin);
             }
             AssignmentOperator::DivAssign => {
                 self.emit_expr(value);
-                self.add(Instruction::BinaryDiv);
+                self.add(Instruction::BinaryDiv, origin);
             }
             AssignmentOperator::AddAssign => {
                 self.emit_expr(value);
-                self.add(Instruction::BinaryAdd);
+                self.add(Instruction::BinaryAdd, origin);
             }
             AssignmentOperator::SubAssign => {
                 self.emit_expr(value);
-                self.add(Instruction::BinarySub);
+                self.add(Instruction::BinarySub, origin);
             }
-            AssignmentOperator::NclAssign => self.emit_ncl_operation(value),
+            AssignmentOperator::NclAssign => self.emit_ncl_operation(value, origin),
         }
     }
 }

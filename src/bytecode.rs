@@ -16,8 +16,11 @@ pub use variable::{
     ExportLocation, Parameter, StackLocation, Variable, VariableLocation, VariableVariant,
 };
 
+use crate::source::Span;
+
 pub struct Bytecode {
     instructions: Vec<Instruction>,
+    spans: Vec<Span>,
 }
 
 impl Debug for Bytecode {
@@ -30,11 +33,18 @@ impl Debug for Bytecode {
 }
 
 impl Bytecode {
-    pub fn new(instructions: Vec<Instruction>) -> Self {
-        Self { instructions }
+    pub fn new(instructions: Vec<Instruction>, spans: Vec<Span>) -> Self {
+        Self {
+            instructions,
+            spans,
+        }
     }
 
-    pub fn instructions(&self) -> &Vec<Instruction> {
+    pub fn instructions(&self) -> &[Instruction] {
         &self.instructions
+    }
+
+    pub fn spans(&self) -> &[Span] {
+        &self.spans
     }
 }

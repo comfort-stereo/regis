@@ -3,29 +3,25 @@ use crate::source::Span;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Token<'source> {
     kind: TokenKind,
-    start: usize,
+    span: Span,
     slice: &'source str,
 }
 
 impl<'source> Token<'source> {
     pub fn new(kind: TokenKind, start: usize, slice: &'source str) -> Self {
-        Self { kind, start, slice }
+        Self {
+            kind,
+            span: Span::new(start, start + slice.len()),
+            slice,
+        }
     }
 
     pub fn kind(&self) -> &TokenKind {
         &self.kind
     }
 
-    pub fn start(&self) -> usize {
-        self.start
-    }
-
-    pub fn end(&self) -> usize {
-        self.start + self.slice.len()
-    }
-
-    pub fn span(&self) -> Span {
-        Span::new(self.start(), self.end())
+    pub fn span(&self) -> &Span {
+        &self.span
     }
 
     pub fn slice(&self) -> &str {

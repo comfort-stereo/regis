@@ -39,6 +39,7 @@ pub struct Interpreter {
     globals: Vec<Value>,
 }
 
+#[allow(clippy::unnecessary_wraps)]
 impl Interpreter {
     pub fn new(main: CanonicalPath) -> Self {
         let mut result = Self {
@@ -141,7 +142,7 @@ impl Interpreter {
         }
 
         // Run the bytecode instructions.
-        self.run_instructions(module.bytecode())?;
+        self.run_bytecode(module.bytecode(), module.environment())?;
 
         // Pop the module frame.
         let frame = self.frames.pop().unwrap();
@@ -196,7 +197,7 @@ impl Interpreter {
         self.push_stack_values(function.init());
 
         // Run the bytecode instructions.
-        self.run_instructions(procedure.bytecode())?;
+        self.run_bytecode(procedure.bytecode(), procedure.environment())?;
 
         // Pop the function call frame and discard all allocated variables.
         {
@@ -239,77 +240,100 @@ impl Interpreter {
         )
     }
 
-    fn run_instructions(&mut self, bytecode: &Bytecode) -> Result<(), RegisError> {
-        let mut position = 0;
-        let end = bytecode.instructions().len();
+    fn run_bytecode(
+        &mut self,
+        bytecode: &Bytecode,
+        environment: &Environment,
+    ) -> Result<(), RegisError> {
+        let mut ptr = Some(0);
+        let instructions = bytecode.instructions();
 
-        while position < end {
-            let instruction = bytecode
-                .instructions()
-                .get(position)
-                .expect("Undefined bytecode position reached.");
-            let mut next = position + 1;
-
-            if DEBUG {
-                println!("DEBUG: {} -> {:#?}:", position, instruction);
+        while let Some(start) = ptr {
+            if start >= instructions.len() {
+                break;
             }
 
-            match instruction {
-                Instruction::Blank => {}
-                Instruction::Pop => self.instruction_pop(),
-                Instruction::Duplicate => self.instruction_duplicate(),
-                Instruction::DuplicateTop(count) => self.instruction_duplicate_top(*count),
-                Instruction::Jump(destination) => next = *destination,
-                Instruction::JumpIf(destination) => {
-                    if self.pop_value().to_boolean() {
-                        next = *destination;
-                    }
-                }
-                Instruction::JumpUnless(destination) => {
-                    if !self.pop_value().to_boolean() {
-                        next = *destination;
-                    }
-                }
-                Instruction::Return => break,
-                Instruction::IsNull => self.instruction_is_null(),
-                Instruction::PushNull => self.instruction_push_null(),
-                Instruction::PushBoolean(value) => self.instruction_push_boolean(*value),
-                Instruction::PushInt(value) => self.instruction_push_int(*value),
-                Instruction::PushFloat(value) => self.instruction_push_float(*value),
-                Instruction::PushString(value) => self.instruction_push_string(value.clone()),
-                Instruction::PushVariable(address) => self.instruction_push_variable(*address),
-                Instruction::AssignVariable(address) => self.instruction_assign_variable(*address),
-                Instruction::PushExport(location) => self.instruction_push_export(location),
-                Instruction::AssignExport(location) => self.instruction_assign_export(location),
-                Instruction::PushGlobal(address) => self.instruction_push_global(*address),
-                Instruction::CreateList(size) => self.instruction_create_list(*size),
-                Instruction::CreateObject(size) => self.instruction_create_object(*size),
-                Instruction::CreateFunction(procedure) => {
-                    self.instruction_create_function(procedure.clone())
-                }
-                Instruction::Call(argument_count) => self.instruction_call(*argument_count)?,
-                Instruction::UnaryNeg => self.instruction_unary_neg()?,
-                Instruction::UnaryBitNot => self.instruction_unary_bit_not()?,
-                Instruction::UnaryNot => self.instruction_unary_not(),
-                Instruction::BinaryAdd => self.instruction_binary_add()?,
-                Instruction::BinarySub => self.instruction_binary_sub()?,
-                Instruction::BinaryMul => self.instruction_binary_mul()?,
-                Instruction::BinaryDiv => self.instruction_binary_div()?,
-                Instruction::BinaryShl => self.instruction_binary_shl()?,
-                Instruction::BinaryShr => self.instruction_binary_shr()?,
-                Instruction::BinaryBitAnd => self.instruction_binary_bit_and()?,
-                Instruction::BinaryBitOr => self.instruction_binary_bit_or()?,
-                Instruction::BinaryLt => self.instruction_binary_lt()?,
-                Instruction::BinaryGt => self.instruction_binary_gt()?,
-                Instruction::BinaryLte => self.instruction_binary_lte()?,
-                Instruction::BinaryGte => self.instruction_binary_gte()?,
-                Instruction::BinaryEq => self.instruction_binary_eq(),
-                Instruction::BinaryNeq => self.instruction_binary_neq(),
-                Instruction::GetIndex => self.instruction_get_index()?,
-                Instruction::SetIndex => self.instruction_set_index()?,
-            }
+            ptr.take();
 
-            position = next;
+            for (i, instruction) in instructions[start..].iter().enumerate() {
+                let result = match instruction {
+                    Instruction::Blank => Ok(()),
+                    Instruction::Pop => self.instruction_pop(),
+                    Instruction::Duplicate => self.instruction_duplicate(),
+                    Instruction::DuplicateTop(count) => self.instruction_duplicate_top(*count),
+                    Instruction::Jump(destination) => {
+                        ptr.replace(*destination);
+                        break;
+                    }
+                    Instruction::JumpIf(destination) => {
+                        if self.pop_value().to_boolean() {
+                            ptr.replace(*destination);
+                            break;
+                        }
+
+                        Ok(())
+                    }
+                    Instruction::JumpUnless(destination) => {
+                        if !self.pop_value().to_boolean() {
+                            ptr.replace(*destination);
+                            break;
+                        }
+
+                        Ok(())
+                    }
+                    Instruction::Return => return Ok(()),
+                    Instruction::IsNull => self.instruction_is_null(),
+                    Instruction::PushNull => self.instruction_push_null(),
+                    Instruction::PushBoolean(value) => self.instruction_push_boolean(*value),
+                    Instruction::PushInt(value) => self.instruction_push_int(*value),
+                    Instruction::PushFloat(value) => self.instruction_push_float(*value),
+                    Instruction::PushString(value) => self.instruction_push_string(value.clone()),
+                    Instruction::PushVariable(address) => self.instruction_push_variable(*address),
+                    Instruction::AssignVariable(address) => {
+                        self.instruction_assign_variable(*address)
+                    }
+                    Instruction::PushExport(location) => self.instruction_push_export(location),
+                    Instruction::AssignExport(location) => self.instruction_assign_export(location),
+                    Instruction::PushGlobal(address) => self.instruction_push_global(*address),
+                    Instruction::CreateList(size) => self.instruction_create_list(*size),
+                    Instruction::CreateObject(size) => self.instruction_create_object(*size),
+                    Instruction::CreateFunction(procedure) => {
+                        self.instruction_create_function(procedure.clone())
+                    }
+                    Instruction::Call(argument_count) => self.instruction_call(*argument_count),
+                    Instruction::UnaryNeg => self.instruction_unary_neg(),
+                    Instruction::UnaryBitNot => self.instruction_unary_bit_not(),
+                    Instruction::UnaryNot => self.instruction_unary_not(),
+                    Instruction::BinaryAdd => self.instruction_binary_add(),
+                    Instruction::BinarySub => self.instruction_binary_sub(),
+                    Instruction::BinaryMul => self.instruction_binary_mul(),
+                    Instruction::BinaryDiv => self.instruction_binary_div(),
+                    Instruction::BinaryShl => self.instruction_binary_shl(),
+                    Instruction::BinaryShr => self.instruction_binary_shr(),
+                    Instruction::BinaryBitAnd => self.instruction_binary_bit_and(),
+                    Instruction::BinaryBitOr => self.instruction_binary_bit_or(),
+                    Instruction::BinaryLt => self.instruction_binary_lt(),
+                    Instruction::BinaryGt => self.instruction_binary_gt(),
+                    Instruction::BinaryLte => self.instruction_binary_lte(),
+                    Instruction::BinaryGte => self.instruction_binary_gte(),
+                    Instruction::BinaryEq => self.instruction_binary_eq(),
+                    Instruction::BinaryNeq => self.instruction_binary_neq(),
+                    Instruction::GetIndex => self.instruction_get_index(),
+                    Instruction::SetIndex => self.instruction_set_index(),
+                };
+
+                if let Err(error) = result {
+                    let location = error.location().clone().unwrap_or_else(|| {
+                        Location::new(
+                            Some(environment.path().clone()),
+                            bytecode.spans()[start + i],
+                        )
+                    });
+                    let variant = error.variant().clone();
+
+                    return Err(RegisError::new(Some(location), variant));
+                }
+            }
         }
 
         Ok(())
@@ -450,53 +474,68 @@ impl Interpreter {
         self.top_frame().map_or(0, |frame| frame.position())
     }
 
-    fn instruction_pop(&mut self) {
+    fn instruction_pop(&mut self) -> Result<(), RegisError> {
         self.pop_value();
+        Ok(())
     }
 
-    fn instruction_duplicate(&mut self) {
+    fn instruction_duplicate(&mut self) -> Result<(), RegisError> {
         let value = self.top_value();
         self.push_value(value);
+        Ok(())
     }
 
-    fn instruction_duplicate_top(&mut self, count: usize) {
+    fn instruction_duplicate_top(&mut self, count: usize) -> Result<(), RegisError> {
         for i in self.top() - count..self.top() {
             self.push_value(self.stack[i].get());
         }
+
+        Ok(())
     }
 
-    fn instruction_is_null(&mut self) {
+    fn instruction_is_null(&mut self) -> Result<(), RegisError> {
         let value = self.pop_value();
         self.push_value(Value::Boolean(matches!(value, Value::Null)));
+        Ok(())
     }
 
-    fn instruction_push_null(&mut self) {
+    fn instruction_push_null(&mut self) -> Result<(), RegisError> {
         self.push_value(Value::Null);
+        Ok(())
     }
 
-    fn instruction_push_boolean(&mut self, value: bool) {
+    fn instruction_push_boolean(&mut self, value: bool) -> Result<(), RegisError> {
         self.push_value(Value::Boolean(value));
+        Ok(())
     }
 
-    fn instruction_push_int(&mut self, value: i64) {
+    fn instruction_push_int(&mut self, value: i64) -> Result<(), RegisError> {
         self.push_value(Value::Int(value));
+        Ok(())
     }
 
-    fn instruction_push_float(&mut self, value: f64) {
+    fn instruction_push_float(&mut self, value: f64) -> Result<(), RegisError> {
         self.push_value(Value::Float(value));
+        Ok(())
     }
 
-    fn instruction_push_string(&mut self, value: SharedImmutable<String>) {
+    fn instruction_push_string(
+        &mut self,
+        value: SharedImmutable<String>,
+    ) -> Result<(), RegisError> {
         self.push_value(Value::String(value));
+        Ok(())
     }
 
-    fn instruction_push_variable(&mut self, address: usize) {
+    fn instruction_push_variable(&mut self, address: usize) -> Result<(), RegisError> {
         self.push_value(self.get_variable(address));
+        Ok(())
     }
 
-    fn instruction_assign_variable(&mut self, address: usize) {
+    fn instruction_assign_variable(&mut self, address: usize) -> Result<(), RegisError> {
         let value = self.pop_value();
         self.set_variable(address, value);
+        Ok(())
     }
 
     fn instruction_push_export(
@@ -505,7 +544,7 @@ impl Interpreter {
             path: module,
             export,
         }: &ExportLocation,
-    ) {
+    ) -> Result<(), RegisError> {
         let value = self
             .modules
             .get(module)
@@ -523,6 +562,7 @@ impl Interpreter {
             });
 
         self.push_value(value);
+        Ok(())
     }
 
     fn instruction_assign_export(
@@ -531,7 +571,7 @@ impl Interpreter {
             path: module,
             export,
         }: &ExportLocation,
-    ) {
+    ) -> Result<(), RegisError> {
         let value = self.pop_value();
         self.modules
             .get(module)
@@ -547,13 +587,15 @@ impl Interpreter {
                     export, module,
                 )
             });
+        Ok(())
     }
 
-    fn instruction_push_global(&mut self, address: usize) {
+    fn instruction_push_global(&mut self, address: usize) -> Result<(), RegisError> {
         self.push_value(self.globals[address].clone());
+        Ok(())
     }
 
-    fn instruction_create_list(&mut self, size: usize) {
+    fn instruction_create_list(&mut self, size: usize) -> Result<(), RegisError> {
         let mut list = List::new();
         list.reserve(size);
         for _ in 0..size {
@@ -561,9 +603,10 @@ impl Interpreter {
         }
 
         self.push_value(Value::List(list.into()));
+        Ok(())
     }
 
-    fn instruction_create_object(&mut self, size: usize) {
+    fn instruction_create_object(&mut self, size: usize) -> Result<(), RegisError> {
         let mut object = Object::new();
         object.reserve(size);
         for _ in 0..size {
@@ -573,9 +616,13 @@ impl Interpreter {
         }
 
         self.push_value(Value::Object(object.into()));
+        Ok(())
     }
 
-    fn instruction_create_function(&mut self, procedure: SharedImmutable<Procedure>) {
+    fn instruction_create_function(
+        &mut self,
+        procedure: SharedImmutable<Procedure>,
+    ) -> Result<(), RegisError> {
         let init = procedure
             .environment()
             .variables()
@@ -592,6 +639,7 @@ impl Interpreter {
         self.push_value(Value::Function(
             Function::with_init(ProcedureVariant::Internal(procedure), init).into(),
         ));
+        Ok(())
     }
 
     fn instruction_call(&mut self, argument_count: usize) -> Result<(), RegisError> {
@@ -601,9 +649,8 @@ impl Interpreter {
             _ => {
                 return Err(RegisError::new(
                     None,
-                    RegisErrorVariant::UndefinedUnaryOperation {
-                        operation: format!("{:?}", Instruction::Call(argument_count)),
-                        right_type: target.type_of(),
+                    RegisErrorVariant::TypeError {
+                        message: format!("Type '{}' is not callable.", target.type_of()),
                     },
                 ));
             }
@@ -659,8 +706,9 @@ impl Interpreter {
         })
     }
 
-    fn instruction_unary_not(&mut self) {
-        self.run_non_errorable_unary_operation(|right| Value::Boolean(!right.to_boolean()))
+    fn instruction_unary_not(&mut self) -> Result<(), RegisError> {
+        self.run_non_errorable_unary_operation(|right| Value::Boolean(!right.to_boolean()));
+        Ok(())
     }
 
     fn instruction_binary_add(&mut self) -> Result<(), RegisError> {
@@ -845,12 +893,14 @@ impl Interpreter {
         })
     }
 
-    fn instruction_binary_eq(&mut self) {
-        self.run_non_errorable_binary_operation(|left, right| Value::Boolean(left == right))
+    fn instruction_binary_eq(&mut self) -> Result<(), RegisError> {
+        self.run_non_errorable_binary_operation(|left, right| Value::Boolean(left == right));
+        Ok(())
     }
 
-    fn instruction_binary_neq(&mut self) {
-        self.run_non_errorable_binary_operation(|left, right| Value::Boolean(left != right))
+    fn instruction_binary_neq(&mut self) -> Result<(), RegisError> {
+        self.run_non_errorable_binary_operation(|left, right| Value::Boolean(left != right));
+        Ok(())
     }
 
     fn instruction_get_index(&mut self) -> Result<(), RegisError> {
@@ -963,7 +1013,7 @@ fn unary_operation_error(operator: &'static str, right: Value) -> RegisError {
     RegisError::new(
         None,
         RegisErrorVariant::UndefinedUnaryOperation {
-            operation: operator.into(),
+            operator: operator.into(),
             right_type: right.type_of(),
         },
     )
@@ -973,7 +1023,7 @@ fn binary_operation_error(operator: &'static str, left: Value, right: Value) -> 
     RegisError::new(
         None,
         RegisErrorVariant::UndefinedBinaryOperation {
-            operation: operator.into(),
+            operator: operator.into(),
             left_type: left.type_of(),
             right_type: right.type_of(),
         },

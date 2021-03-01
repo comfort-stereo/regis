@@ -6,7 +6,7 @@ use super::base::*;
 use super::expr::*;
 use super::stmt::*;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NodeInfo {
     id: Uuid,
     span: Span,
