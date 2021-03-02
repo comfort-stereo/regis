@@ -285,7 +285,7 @@ Objects can have trailing commas.
 { a: 1, b: 2, c: 3, }
 ```
 
-Function
+### Function
 
 I'm just going to assume we generally know what a function is.
 
