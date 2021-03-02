@@ -34,6 +34,14 @@ Mind blowing, I know.
 
 # Essentials
 
+## Comments
+
+Comments start with the "#" character and extend to the end of the line.
+
+```js
+# This is a comment.
+```
+
 ## Built in Functions
 
 Built in functions all start with "@" to avoid naming conflicts.
