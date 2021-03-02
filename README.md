@@ -85,7 +85,7 @@ That's it for now. More will be added.
 | -------- | ----------- |
 | \-   | Negate the value of a number on the right.
 | ~    | Compute the bitwise "not" of a number on the right.
-| not  | Return false if the number on the right is truthy, otherwise return true.
+| not  | Return false if the value on the right is truthy, otherwise return true.
 
 ## Chain Operators
 
