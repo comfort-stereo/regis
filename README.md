@@ -97,12 +97,12 @@ That's it for now. More will be added.
 
 ## Operator Precedence
 
-* Expressions wrapped in parenthesis are computed first, as expected.
+* Expressions wrapped in parenthesis are computed first.
 * All chain operators have higher precedence than unary operators.
-* All chain operators have the same precedence and are applied left to right.
-* All unary operators have higher precedence that binary operators.
-* All unary operators have the same precedence and are applied right to left.
-* Binary operators are computed in the following order, with higher precedence coming first:
+* All chain operators have the same precedence and are evaluated left to right.
+* All unary operators have higher precedence than binary operators.
+* All unary operators have the same precedence and are evaluated right to left.
+* Binary operators are evaluated in the following order, with higher precedence coming first:
   1. ??
   2. \* /
   3. \+ -
