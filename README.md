@@ -166,7 +166,7 @@ A 64-bit floating point value.
 
 You can do math with a mix of integers and floats. You don't normally have to worry about the difference unless you're messing with bits or doing equality checks.
 
-String
+### String
 
 An immutable UTF-8 encoded string of characters that represent text.
 
