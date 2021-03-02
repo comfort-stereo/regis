@@ -907,13 +907,40 @@ impl Interpreter {
         let index = self.pop_value();
         let target = self.pop_value();
         let value = match target {
+            Value::String(string) => {
+                if let Value::Int(int) = index {
+                    let positive = int as usize;
+                    if int < 0 || positive >= string.len() {
+                        Value::Null
+                    } else {
+                        let character = if string.is_ascii() {
+                            string.as_bytes()[positive] as char
+                        } else {
+                            string.chars().nth(positive).unwrap()
+                        };
+
+                        Value::String(character.to_string().into())
+                    }
+                } else {
+                    return Err(RegisError::new(
+                        None,
+                        RegisErrorVariant::TypeError {
+                            message: format!(
+                                "String cannot be indexed by type '{}', only '{}' is allowed.",
+                                index.type_of(),
+                                ValueType::Int
+                            ),
+                        },
+                    ));
+                }
+            }
             Value::List(list) => list.borrow().get(&index)?,
             Value::Object(object) => object.borrow().get(&index),
             _ => {
                 return Err(RegisError::new(
                     None,
                     RegisErrorVariant::TypeError {
-                        message: format!("Type '{}' is not indexable.", target.type_of()),
+                        message: format!("Cannot get index of type '{}'.", target.type_of()),
                     },
                 ));
             }
@@ -935,7 +962,7 @@ impl Interpreter {
                 return Err(RegisError::new(
                     None,
                     RegisErrorVariant::TypeError {
-                        message: format!("Type '{}' is not indexable.", target.type_of()),
+                        message: format!("Cannot set index of type '{}'.", target.type_of()),
                     },
                 ));
             }
