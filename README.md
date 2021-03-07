@@ -416,7 +416,7 @@ if condition {
 ```
 
 ```text
-let number = 0;
+let number = 1;
 
 # This will print "bear".
 if number == 0 {
