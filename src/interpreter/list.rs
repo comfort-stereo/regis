@@ -1,16 +1,19 @@
-use std::fmt::{Display, Formatter, Result as FormatResult};
-use std::hash::{Hash, Hasher};
+use std::{
+    fmt::{Display, Formatter, Result as FormatResult},
+    hash::{Hash, Hasher},
+};
 
-use crate::error::RegisError;
-use crate::shared::SharedMutable;
+use crate::{error::RegisError, shared::SharedMutable};
 
-use super::rid::rid;
-use super::value::{Value, ValueType};
-use super::RegisErrorVariant;
+use super::{
+    rid::Rid,
+    value::{Value, ValueType},
+    RegisErrorVariant,
+};
 
 #[derive(Debug)]
 pub struct List {
-    id: usize,
+    id: Rid,
     inner: Vec<Value>,
 }
 
@@ -42,16 +45,10 @@ impl Display for List {
     }
 }
 
-impl Default for List {
-    fn default() -> Self {
-        List::new()
-    }
-}
-
 impl List {
-    pub fn new() -> Self {
+    pub fn new(id: Rid) -> Self {
         Self {
-            id: rid(),
+            id,
             inner: Vec::new(),
         }
     }
@@ -131,8 +128,8 @@ impl List {
         self.inner.reserve(capacity);
     }
 
-    pub fn concat(&self, other: &Self) -> SharedMutable<Self> {
-        let mut result = Self::new();
+    pub fn concat(&self, other: &Self, id: Rid) -> SharedMutable<Self> {
+        let mut result = Self::new(id);
         result.reserve(self.len() + other.len());
 
         for value in &self.inner {

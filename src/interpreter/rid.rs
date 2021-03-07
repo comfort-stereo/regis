@@ -1,7 +1,18 @@
-use std::sync::atomic::{AtomicUsize, Ordering};
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Rid(u128);
 
-static mut NEXT: AtomicUsize = AtomicUsize::new(0);
+impl Rid {
+    pub fn new() -> Rid {
+        Rid(0)
+    }
 
-pub fn rid() -> usize {
-    unsafe { NEXT.fetch_add(1, Ordering::Relaxed) }
+    pub fn next(&self) -> Rid {
+        Rid(self.0.wrapping_add(1))
+    }
+}
+
+impl Default for Rid {
+    fn default() -> Self {
+        Rid::new()
+    }
 }

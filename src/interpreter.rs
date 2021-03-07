@@ -27,6 +27,7 @@ use crate::source::{CanonicalPath, Location};
 use capture::Capture;
 use function::ProcedureVariant;
 use native::{ExternalCallContext, ExternalProcedure, ExternalProcedureCallback};
+use rid::Rid;
 
 static DEBUG: bool = false;
 
@@ -37,6 +38,7 @@ pub struct Interpreter {
     modules: HashMap<CanonicalPath, LoadedModule>,
     environment: Environment,
     globals: Vec<Value>,
+    next_id: Rid,
 }
 
 #[allow(clippy::unnecessary_wraps)]
@@ -48,6 +50,7 @@ impl Interpreter {
             modules: HashMap::new(),
             environment: Environment::new(main),
             globals: Vec::new(),
+            next_id: Rid::new(),
         };
 
         result.add_default_globals();
@@ -56,6 +59,12 @@ impl Interpreter {
 
     pub fn environment(&self) -> &Environment {
         &self.environment
+    }
+
+    pub fn generate_id(&mut self) -> Rid {
+        let id = self.next_id;
+        self.next_id = self.next_id.next();
+        id
     }
 
     pub fn add_global(&mut self, name: String, value: Value) {
@@ -74,10 +83,15 @@ impl Interpreter {
         callback: ExternalProcedureCallback,
     ) {
         let procedure = ExternalProcedure::new(SharedImmutable::new(name.clone()), arity, callback);
-        self.add_global(
-            name,
-            Value::Function(Function::new(ProcedureVariant::External(procedure.into())).into()),
+        let function = Value::Function(
+            Function::new(
+                self.generate_id(),
+                ProcedureVariant::External(procedure.into()),
+            )
+            .into(),
         );
+
+        self.add_global(name, function);
     }
 
     fn add_default_globals(&mut self) {
@@ -126,7 +140,7 @@ impl Interpreter {
 
     fn run_module(&mut self, module: SharedImmutable<Module>) -> Result<(), RegisError> {
         // Add the module to the set of loaded modules.
-        let loaded = LoadedModule::new(module.clone());
+        let loaded = LoadedModule::new(self.generate_id(), module.clone());
         self.modules.insert(module.path().clone(), loaded);
 
         // Push a new module frame onto the stack. Store the position we return to to after its
@@ -596,7 +610,7 @@ impl Interpreter {
     }
 
     fn instruction_create_list(&mut self, size: usize) -> Result<(), RegisError> {
-        let mut list = List::new();
+        let mut list = List::new(self.generate_id());
         list.reserve(size);
         for _ in 0..size {
             list.push(self.pop_value());
@@ -607,7 +621,7 @@ impl Interpreter {
     }
 
     fn instruction_create_object(&mut self, size: usize) -> Result<(), RegisError> {
-        let mut object = Object::new();
+        let mut object = Object::new(self.generate_id());
         object.reserve(size);
         for _ in 0..size {
             let key = self.pop_value();
@@ -636,9 +650,16 @@ impl Interpreter {
             .collect::<Vec<_>>()
             .into_boxed_slice();
 
-        self.push_value(Value::Function(
-            Function::with_init(ProcedureVariant::Internal(procedure), init).into(),
-        ));
+        let function = Value::Function(
+            Function::with_init(
+                self.generate_id(),
+                ProcedureVariant::Internal(procedure),
+                init,
+            )
+            .into(),
+        );
+
+        self.push_value(function);
         Ok(())
     }
 
@@ -659,36 +680,46 @@ impl Interpreter {
         self.run_function(&function, argument_count)
     }
 
-    fn run_errorable_unary_operation<O: Fn(Value) -> Result<Value, RegisError>>(
+    fn run_errorable_unary_operation<O: Fn(&mut Self, Value) -> Result<Value, RegisError>>(
         &mut self,
         operation: O,
     ) -> Result<(), RegisError> {
         let right = self.pop_value();
-        operation(right).map(|result| self.push_value(result))
+        operation(self, right).map(|result| self.push_value(result))
     }
 
-    fn run_non_errorable_unary_operation<O: Fn(Value) -> Value>(&mut self, operation: O) {
+    fn run_non_errorable_unary_operation<O: Fn(&mut Self, Value) -> Value>(
+        &mut self,
+        operation: O,
+    ) {
         let right = self.pop_value();
-        self.push_value(operation(right));
+        let result = operation(self, right);
+        self.push_value(result);
     }
 
-    fn run_errorable_binary_operation<O: Fn(Value, Value) -> Result<Value, RegisError>>(
+    fn run_errorable_binary_operation<
+        O: Fn(&mut Self, Value, Value) -> Result<Value, RegisError>,
+    >(
         &mut self,
         operation: O,
     ) -> Result<(), RegisError> {
         let right = self.pop_value();
         let left = self.pop_value();
-        operation(left, right).map(|result| self.push_value(result))
+        operation(self, left, right).map(|result| self.push_value(result))
     }
 
-    fn run_non_errorable_binary_operation<O: Fn(Value, Value) -> Value>(&mut self, operation: O) {
+    fn run_non_errorable_binary_operation<O: Fn(&mut Self, Value, Value) -> Value>(
+        &mut self,
+        operation: O,
+    ) {
         let right = self.pop_value();
         let left = self.pop_value();
-        self.push_value(operation(left, right));
+        let result = operation(self, left, right);
+        self.push_value(result);
     }
 
     fn instruction_unary_neg(&mut self) -> Result<(), RegisError> {
-        self.run_errorable_unary_operation(|right| {
+        self.run_errorable_unary_operation(|_, right| {
             Ok(match right {
                 Value::Int(int) => Value::Int(-int),
                 Value::Float(float) => Value::Float(-float),
@@ -698,7 +729,7 @@ impl Interpreter {
     }
 
     fn instruction_unary_bit_not(&mut self) -> Result<(), RegisError> {
-        self.run_errorable_unary_operation(|right| {
+        self.run_errorable_unary_operation(|_, right| {
             Ok(match right {
                 Value::Int(int) => Value::Int(!int),
                 _ => return Err(unary_operation_error(Symbol::BitNot.text(), right)),
@@ -707,22 +738,22 @@ impl Interpreter {
     }
 
     fn instruction_unary_not(&mut self) -> Result<(), RegisError> {
-        self.run_non_errorable_unary_operation(|right| Value::Boolean(!right.to_boolean()));
+        self.run_non_errorable_unary_operation(|_, right| Value::Boolean(!right.to_boolean()));
         Ok(())
     }
 
     fn instruction_binary_add(&mut self) -> Result<(), RegisError> {
-        self.run_errorable_binary_operation(|left, right| {
+        self.run_errorable_binary_operation(|this, left, right| {
             Ok(match (left, right) {
                 (Value::Int(left), Value::Int(right)) => Value::Int(left.wrapping_add(right)),
                 (Value::Int(left), Value::Float(right)) => Value::Float(left as f64 + right),
                 (Value::Float(left), Value::Float(right)) => Value::Float(left + right),
                 (Value::Float(left), Value::Int(right)) => Value::Float(left + right as f64),
                 (Value::List(left), Value::List(right)) => {
-                    Value::List(left.borrow().concat(&right.borrow()))
+                    Value::List(left.borrow().concat(&right.borrow(), this.generate_id()))
                 }
                 (Value::Object(left), Value::Object(right)) => {
-                    Value::Object(left.borrow().concat(&right.borrow()))
+                    Value::Object(left.borrow().concat(&right.borrow(), this.generate_id()))
                 }
                 (Value::String(left), right) => {
                     Value::String(format!("{}{}", left, right.to_string()).into())
@@ -738,7 +769,7 @@ impl Interpreter {
     }
 
     fn instruction_binary_sub(&mut self) -> Result<(), RegisError> {
-        self.run_errorable_binary_operation(|left, right| {
+        self.run_errorable_binary_operation(|_, left, right| {
             Ok(match (left, right) {
                 (Value::Int(left), Value::Int(right)) => Value::Int(left.wrapping_sub(right)),
                 (Value::Int(left), Value::Float(right)) => Value::Float(left as f64 - right),
@@ -752,7 +783,7 @@ impl Interpreter {
     }
 
     fn instruction_binary_mul(&mut self) -> Result<(), RegisError> {
-        self.run_errorable_binary_operation(|left, right| {
+        self.run_errorable_binary_operation(|_, left, right| {
             Ok(match (left, right) {
                 (Value::Int(left), Value::Int(right)) => Value::Int(left.wrapping_mul(right)),
                 (Value::Int(left), Value::Float(right)) => Value::Float(left as f64 * right),
@@ -766,7 +797,7 @@ impl Interpreter {
     }
 
     fn instruction_binary_div(&mut self) -> Result<(), RegisError> {
-        self.run_errorable_binary_operation(|left, right| {
+        self.run_errorable_binary_operation(|_, left, right| {
             Ok(match (left, right) {
                 (Value::Int(left), Value::Int(right)) => Value::Int(left.wrapping_div(right)),
                 (Value::Int(left), Value::Float(right)) => Value::Float(left as f64 / right),
@@ -780,7 +811,7 @@ impl Interpreter {
     }
 
     fn instruction_binary_shl(&mut self) -> Result<(), RegisError> {
-        self.run_errorable_binary_operation(|left, right| {
+        self.run_errorable_binary_operation(|_, left, right| {
             Ok(match (left, right) {
                 (Value::Int(left), Value::Int(right)) => {
                     // TODO: Check to make right hand side is correct.
@@ -802,7 +833,7 @@ impl Interpreter {
     }
 
     fn instruction_binary_shr(&mut self) -> Result<(), RegisError> {
-        self.run_errorable_binary_operation(|left, right| {
+        self.run_errorable_binary_operation(|_, left, right| {
             Ok(match (left, right) {
                 (Value::Int(left), Value::Int(right)) => {
                     // TODO: Check to make right hand side is correct.
@@ -816,7 +847,7 @@ impl Interpreter {
     }
 
     fn instruction_binary_bit_and(&mut self) -> Result<(), RegisError> {
-        self.run_errorable_binary_operation(|left, right| {
+        self.run_errorable_binary_operation(|_, left, right| {
             Ok(match (left, right) {
                 (Value::Int(left), Value::Int(right)) => Value::Int(left & right),
                 (left, right) => {
@@ -827,7 +858,7 @@ impl Interpreter {
     }
 
     fn instruction_binary_bit_or(&mut self) -> Result<(), RegisError> {
-        self.run_errorable_binary_operation(|left, right| {
+        self.run_errorable_binary_operation(|_, left, right| {
             Ok(match (left, right) {
                 (Value::Int(left), Value::Int(right)) => Value::Int(left | right),
                 (left, right) => {
@@ -838,7 +869,7 @@ impl Interpreter {
     }
 
     fn instruction_binary_lt(&mut self) -> Result<(), RegisError> {
-        self.run_errorable_binary_operation(|left, right| {
+        self.run_errorable_binary_operation(|_, left, right| {
             Ok(match (left, right) {
                 (Value::Int(left), Value::Int(right)) => Value::Boolean(left < right),
                 (Value::Int(left), Value::Float(right)) => Value::Boolean((left as f64) < right),
@@ -852,7 +883,7 @@ impl Interpreter {
     }
 
     fn instruction_binary_gt(&mut self) -> Result<(), RegisError> {
-        self.run_errorable_binary_operation(|left, right| {
+        self.run_errorable_binary_operation(|_, left, right| {
             Ok(match (left, right) {
                 (Value::Int(left), Value::Int(right)) => Value::Boolean(left > right),
                 (Value::Int(left), Value::Float(right)) => Value::Boolean((left as f64) > right),
@@ -866,7 +897,7 @@ impl Interpreter {
     }
 
     fn instruction_binary_lte(&mut self) -> Result<(), RegisError> {
-        self.run_errorable_binary_operation(|left, right| {
+        self.run_errorable_binary_operation(|_, left, right| {
             Ok(match (left, right) {
                 (Value::Int(left), Value::Int(right)) => Value::Boolean(left <= right),
                 (Value::Int(left), Value::Float(right)) => Value::Boolean((left as f64) <= right),
@@ -880,7 +911,7 @@ impl Interpreter {
     }
 
     fn instruction_binary_gte(&mut self) -> Result<(), RegisError> {
-        self.run_errorable_binary_operation(|left, right| {
+        self.run_errorable_binary_operation(|_, left, right| {
             Ok(match (left, right) {
                 (Value::Int(left), Value::Int(right)) => Value::Boolean(left >= right),
                 (Value::Int(left), Value::Float(right)) => Value::Boolean((left as f64) >= right),
@@ -894,12 +925,12 @@ impl Interpreter {
     }
 
     fn instruction_binary_eq(&mut self) -> Result<(), RegisError> {
-        self.run_non_errorable_binary_operation(|left, right| Value::Boolean(left == right));
+        self.run_non_errorable_binary_operation(|_, left, right| Value::Boolean(left == right));
         Ok(())
     }
 
     fn instruction_binary_neq(&mut self) -> Result<(), RegisError> {
-        self.run_non_errorable_binary_operation(|left, right| Value::Boolean(left != right));
+        self.run_non_errorable_binary_operation(|_, left, right| Value::Boolean(left != right));
         Ok(())
     }
 
@@ -1020,10 +1051,10 @@ struct LoadedModule {
 }
 
 impl LoadedModule {
-    pub fn new(module: SharedImmutable<Module>) -> Self {
+    pub fn new(id: Rid, module: SharedImmutable<Module>) -> Self {
         Self {
             module,
-            exports: Object::new().into(),
+            exports: Object::new(id).into(),
         }
     }
 

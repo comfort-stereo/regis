@@ -4,12 +4,11 @@ use std::hash::{Hash, Hasher};
 use crate::bytecode::Procedure;
 use crate::shared::SharedImmutable;
 
-use super::rid::rid;
-use super::value::ValueType;
+use super::{rid::Rid, value::ValueType};
 use super::{ExternalProcedure, StackValue};
 
 pub struct Function {
-    id: usize,
+    id: Rid,
     procedure: ProcedureVariant,
     init: Box<[StackValue]>,
 }
@@ -49,18 +48,18 @@ impl Debug for Function {
 }
 
 impl Function {
-    pub fn new(procedure: ProcedureVariant) -> Self {
+    pub fn new(id: Rid, procedure: ProcedureVariant) -> Self {
         Self {
-            id: rid(),
+            id,
             procedure,
             init: Box::new([]),
         }
     }
 
-    pub fn with_init(procedure: ProcedureVariant, init: Box<[StackValue]>) -> Self {
+    pub fn with_init(id: Rid, procedure: ProcedureVariant, init: Box<[StackValue]>) -> Self {
         Self {
             init,
-            ..Self::new(procedure)
+            ..Self::new(id, procedure)
         }
     }
 

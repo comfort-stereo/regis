@@ -4,12 +4,14 @@ use std::hash::{Hash, Hasher};
 
 use crate::shared::SharedMutable;
 
-use super::rid::rid;
-use super::value::{Value, ValueType};
+use super::{
+    rid::Rid,
+    value::{Value, ValueType},
+};
 
 #[derive(Debug)]
 pub struct Object {
-    id: usize,
+    id: Rid,
     inner: IndexMap<Value, Value>,
 }
 
@@ -41,16 +43,10 @@ impl Display for Object {
     }
 }
 
-impl Default for Object {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl Object {
-    pub fn new() -> Self {
+    pub fn new(id: Rid) -> Self {
         Self {
-            id: rid(),
+            id,
             inner: IndexMap::new(),
         }
     }
@@ -85,8 +81,8 @@ impl Object {
         self.inner.reserve(capacity);
     }
 
-    pub fn concat(&self, other: &Self) -> SharedMutable<Self> {
-        let mut result = Self::new();
+    pub fn concat(&self, other: &Self, id: Rid) -> SharedMutable<Self> {
+        let mut result = Self::new(id);
         result.reserve(self.len().max(other.len()));
 
         for (key, value) in &self.inner {
