@@ -1,15 +1,12 @@
-use std::{
-    fmt::{Display, Formatter, Result as FormatResult},
-    hash::{Hash, Hasher},
-};
+use std::fmt::{Display, Formatter, Result as FormatResult};
+use std::hash::{Hash, Hasher};
 
-use crate::{error::RegisError, shared::SharedMutable};
+use crate::error::RegisError;
+use crate::shared::SharedMutable;
 
-use super::{
-    rid::Rid,
-    value::{Value, ValueType},
-    RegisErrorVariant,
-};
+use super::rid::Rid;
+use super::value::{Value, ValueType};
+use super::RegisErrorVariant;
 
 #[derive(Debug)]
 pub struct List {

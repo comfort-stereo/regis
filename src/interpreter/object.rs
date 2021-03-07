@@ -1,13 +1,13 @@
-use indexmap::IndexMap;
 use std::fmt::{Display, Formatter, Result as FormatResult};
 use std::hash::{Hash, Hasher};
 
+use indexmap::IndexMap;
+
 use crate::shared::SharedMutable;
 
-use super::{
-    rid::Rid,
-    value::{Value, ValueType},
-};
+use super::rid::Rid;
+use super::value::Value;
+use super::ValueType;
 
 #[derive(Debug)]
 pub struct Object {

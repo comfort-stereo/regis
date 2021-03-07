@@ -4,7 +4,8 @@ use std::hash::{Hash, Hasher};
 use crate::bytecode::Procedure;
 use crate::shared::SharedImmutable;
 
-use super::{rid::Rid, value::ValueType};
+use super::rid::Rid;
+use super::value::ValueType;
 use super::{ExternalProcedure, StackValue};
 
 pub struct Function {

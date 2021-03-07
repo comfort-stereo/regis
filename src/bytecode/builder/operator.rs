@@ -1,5 +1,4 @@
-use crate::ast::Expr;
-use crate::ast::{AssignmentOperator, NodeInfo};
+use crate::ast::{AssignmentOperator, Expr, NodeInfo};
 
 use super::super::instruction::Instruction;
 use super::Builder;

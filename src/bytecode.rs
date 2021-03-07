@@ -7,12 +7,12 @@ mod variable;
 
 use std::fmt::{Debug, Formatter, Result as FormatResult};
 
-pub use builder::Builder;
-pub use environment::Environment;
-pub use instruction::Instruction;
-pub use module::Module;
-pub use procedure::Procedure;
-pub use variable::{
+pub use self::builder::Builder;
+pub use self::environment::Environment;
+pub use self::instruction::Instruction;
+pub use self::module::Module;
+pub use self::procedure::Procedure;
+pub use self::variable::{
     ExportLocation, Parameter, StackLocation, Variable, VariableLocation, VariableVariant,
 };
 

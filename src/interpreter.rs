@@ -7,10 +7,10 @@ mod object;
 mod rid;
 mod value;
 
-pub use function::Function;
-pub use list::List;
-pub use object::Object;
-pub use value::{Value, ValueType};
+pub use self::function::Function;
+pub use self::list::List;
+pub use self::object::Object;
+pub use self::value::{Value, ValueType};
 
 use std::collections::HashMap;
 
@@ -24,10 +24,10 @@ use crate::parser::Parser;
 use crate::shared::{SharedImmutable, SharedMutable};
 use crate::source::{CanonicalPath, Location};
 
-use capture::Capture;
-use function::ProcedureVariant;
-use native::{ExternalCallContext, ExternalProcedure, ExternalProcedureCallback};
-use rid::Rid;
+use self::capture::Capture;
+use self::function::ProcedureVariant;
+use self::native::{ExternalCallContext, ExternalProcedure, ExternalProcedureCallback};
+use self::rid::Rid;
 
 static DEBUG: bool = false;
 
